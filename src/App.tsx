@@ -176,8 +176,9 @@ export default function App() {
     setKeyPair(keys);
 
     // Your Address is derived from your Public Key
-    // Make it URL safe for PeerJS ID requirements
-    const peerId = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
+    const base64Safe = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    const peerId = `mp-${base64Safe}-t`;
     
     setStatus('connecting');
     const newPeer = new Peer(peerId, {
