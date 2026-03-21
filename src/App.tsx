@@ -569,185 +569,194 @@ export default function App() {
     : 0;
 
   return (
-    <div className="flex h-[100dvh] bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
+    <div className="flex h-[100dvh] bg-zinc-950 text-zinc-100 overflow-hidden">
       
-      {/* Mobile Sidebar Overlay */}
+      {/* ── MOBILE OVERLAY BACKDROP ── */}
       {showSidebar && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-30 md:hidden"
           onClick={() => setShowSidebar(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Sidebar (Desktop) / Drawer (Mobile) */}
-      <div className={`
-        fixed inset-y-0 left-0 z-40 w-[85vw] max-w-[320px] md:w-80 bg-zinc-950 border-r border-zinc-800/50 transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
-        md:static md:translate-x-0 flex-shrink-0
-        ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <div className="flex flex-col h-full bg-gradient-to-b from-zinc-950 to-zinc-900 overflow-hidden">
-          <div className="p-6 border-b border-zinc-800/50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/5">
-                <MeshLogo className="w-8 h-8 text-emerald-400 animate-pulse-slow" />
-              </div>
-              <div className="flex flex-col">
-                <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
-                <span className="text-[9px] font-mono text-emerald-500/80 mt-1 uppercase tracking-[0.2em]">Off-Grid Protocol v2.2</span>
-              </div>
+      {/* ── DESKTOP SIDEBAR (always in CSS flow, never fixed, no JS layout) ── */}
+      <aside className="hidden md:flex md:w-80 md:flex-shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950 h-full overflow-hidden">
+        {/* Brand */}
+        <div className="p-5 border-b border-zinc-800/50 flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/30 flex-shrink-0">
+            <MeshLogo className="w-6 h-6 text-emerald-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
+            <p className="text-[8px] font-mono text-emerald-500/70 uppercase tracking-[0.2em] mt-0.5">Off-Grid Protocol v2.2</p>
+          </div>
+        </div>
+
+        {/* Identity */}
+        <div className="px-4 pt-4 flex-shrink-0">
+          <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2.5 mb-4 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)] flex-shrink-0" />
+            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Offline Secure Vault Active</span>
+          </div>
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Cloud Node ID</p>
+          <div className="flex items-center gap-2 bg-black/40 rounded-xl p-3 border border-zinc-800/50 mb-4">
+            <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center text-2xl flex-shrink-0 border border-zinc-800">
+              {myId ? generateAvatar(myId) : '⏳'}
             </div>
-            <button className="md:hidden p-2 text-zinc-500 hover:text-white bg-zinc-900 border border-zinc-800 rounded-lg" onClick={() => setShowSidebar(false)}>
-              <X className="w-5 h-5" />
+            <div className="flex-1 overflow-hidden">
+              <p className="font-bold text-sm text-zinc-100 truncate">{myId ? generateFoodName(myId) : '---'}</p>
+              <p className="font-mono text-[9px] text-emerald-500/60 uppercase">#MP-MESH-SAFE</p>
+            </div>
+            <button onClick={() => setShowQrModal(true)} className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-zinc-950 rounded-lg transition-all border border-emerald-500/20 flex-shrink-0">
+              <QrCode className="w-4 h-4" />
             </button>
           </div>
-          
-          <div className="p-5">
-            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3 mb-6 flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,1)]"></div>
-              <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Offline Secure Vault Active</div>
-            </div>
+        </div>
 
-            <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 px-1">Cloud Node ID</div>
-            <div className="flex items-center justify-between bg-black/40 rounded-2xl p-4 border border-zinc-800/50 shadow-inner group transition-all hover:bg-black/60">
-              <div className="flex items-center gap-3 overflow-hidden">
-                <div className="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center text-3xl shadow-lg border border-zinc-800/50 group-hover:border-emerald-500/30 transition-colors">
-                  {myId ? generateAvatar(myId) : '⏳'}
-                </div>
-                <div className="flex flex-col overflow-hidden">
-                  <span className="font-bold text-base text-zinc-100 leading-tight truncate">{myId ? generateFoodName(myId) : '------'}</span>
-                  <span className="font-mono text-[10px] text-emerald-500/60 mt-0.5 truncate uppercase">#MP-MESH-SAFE</span>
-                </div>
+        {/* Scrollable Peers & Address Book */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Peers ({connections.size})</p>
+            <button onClick={() => setShowConnectModal(true)} className="p-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded transition-colors">
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          {connections.size === 0 ? (
+            <div className="text-center py-6 text-zinc-600 text-xs mb-4">
+              <Users className="w-6 h-6 mx-auto mb-2 opacity-30" />
+              <p>No peers connected.</p>
+            </div>
+          ) : (
+            <ul className="space-y-1.5 mb-6">
+              {Array.from(connections.keys()).map((peerId: string) => {
+                const stats = peerStats.get(peerId);
+                const isFriend = friends.some(f => f.id === peerId);
+                return (
+                  <li key={peerId} className={`flex items-center gap-2 p-2.5 rounded-lg border ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-800/50 border-zinc-800'}`}>
+                    <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center text-sm flex-shrink-0">{generateAvatar(peerId)}</div>
+                    <div className="flex-1 overflow-hidden">
+                      <p className={`text-xs font-bold truncate ${isFriend ? 'text-amber-300' : 'text-zinc-200'}`}>{getDisplayName(peerId)}</p>
+                      {stats && <p className="text-[9px] font-mono text-emerald-400">{stats.latency}ms</p>}
+                    </div>
+                    <button onClick={() => toggleFriend(peerId)} className={`p-1 rounded flex-shrink-0 ${isFriend ? 'text-amber-400' : 'text-zinc-600 hover:text-amber-400'}`}>
+                      <Star className="w-3.5 h-3.5" fill={isFriend ? 'currentColor' : 'none'} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <div className="flex items-center gap-2 mb-3 pt-3 border-t border-zinc-800">
+            <Star className="w-3.5 h-3.5 text-emerald-500" />
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Address Book ({friends.filter(f => f.id !== myId).length})</p>
+          </div>
+          {friends.filter(f => f.id !== myId).length === 0 ? (
+            <p className="text-center py-3 text-zinc-600 text-[10px] italic border border-zinc-800/40 rounded-lg">No trusted friends yet.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {friends.filter(f => f.id !== myId).map(friend => {
+                const isConnected = connections.has(friend.id);
+                return (
+                  <li key={friend.id}
+                    onClick={() => { if (!isConnected && peer) { setupConnection(peer.connect(friend.id)); } }}
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${isConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900/40 border-zinc-800/30 hover:bg-zinc-800/60'}`}>
+                    <div className="relative flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-sm">{generateAvatar(friend.id)}</div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950 ${isConnected ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <p className={`text-xs font-bold truncate ${isConnected ? 'text-amber-300' : 'text-zinc-300'}`}>{friend.name}</p>
+                      <p className="text-[9px] text-zinc-500 uppercase">{isConnected ? 'Online' : 'Tap to Ping'}</p>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); setViewPeerInfo(friend.id); }} className="p-1 text-zinc-600 hover:text-emerald-400 flex-shrink-0">
+                      <Search className="w-3.5 h-3.5" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </aside>
+
+      {/* ── MOBILE DRAWER (fixed overlay, only rendered when open) ── */}
+      {showSidebar && (
+        <div className="fixed inset-y-0 left-0 z-40 w-80 max-w-[85vw] flex flex-col bg-zinc-950 border-r border-zinc-800/50 shadow-2xl md:hidden overflow-y-auto">
+          <div className="p-5 border-b border-zinc-800/50 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/30">
+                <MeshLogo className="w-6 h-6 text-emerald-400" />
               </div>
-              <button 
-                onClick={() => setShowQrModal(true)}
-                className="p-3 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-zinc-950 active:scale-90 rounded-xl transition-all shadow-sm border border-emerald-500/20"
-                title="Show QR Code"
-              >
-                <QrCode className="w-5 h-5" />
+              <div>
+                <h2 className="text-xl font-black text-white tracking-tighter uppercase italic">MeshPaw</h2>
+                <p className="text-[8px] font-mono text-emerald-500/70 uppercase tracking-[0.2em]">Off-Grid Protocol v2.2</p>
+              </div>
+            </div>
+            <button onClick={() => setShowSidebar(false)} className="p-2 text-zinc-500 hover:text-white bg-zinc-900 border border-zinc-800 rounded-lg flex-shrink-0">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="px-4 pt-4 flex-shrink-0">
+            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2.5 mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Offline Secure Vault Active</span>
+            </div>
+            <div className="flex items-center gap-2 bg-black/40 rounded-xl p-3 border border-zinc-800/50 mb-4">
+              <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center text-2xl flex-shrink-0 border border-zinc-800">{myId ? generateAvatar(myId) : '⏳'}</div>
+              <div className="flex-1 overflow-hidden">
+                <p className="font-bold text-sm text-zinc-100 truncate">{myId ? generateFoodName(myId) : '---'}</p>
+                <p className="font-mono text-[9px] text-emerald-500/60 uppercase">#MP-MESH-SAFE</p>
+              </div>
+              <button onClick={() => { setShowQrModal(true); setShowSidebar(false); }} className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 flex-shrink-0">
+                <QrCode className="w-4 h-4" />
               </button>
             </div>
           </div>
-
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Connected Peers ({connections.size})
-              </div>
-              <button 
-                onClick={() => setShowConnectModal(true)}
-                className="p-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-md transition-colors"
-              >
+          <div className="flex-1 px-4 pb-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Peers ({connections.size})</p>
+              <button onClick={() => { setShowConnectModal(true); setShowSidebar(false); }} className="p-1 bg-emerald-500/10 text-emerald-400 rounded">
                 <Plus className="w-4 h-4" />
               </button>
             </div>
-            
             {connections.size === 0 ? (
-              <div className="text-center py-8 text-zinc-500 text-sm">
-                <Users className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                <p>No peers connected.</p>
-                <p className="mt-1">Add a peer to start meshing.</p>
-              </div>
+              <div className="text-center py-6 text-zinc-600 text-xs mb-4"><Users className="w-6 h-6 mx-auto mb-2 opacity-30" /><p>No peers connected.</p></div>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-1.5 mb-4">
                 {Array.from(connections.keys()).map((peerId: string) => {
-                  const stats = peerStats.get(peerId);
-                  const isStale = stats && (Date.now() - stats.lastSeen > 15000);
-                  const isFriend = friends.some(f => f.id === peerId);
-                  
+                  const stats = peerStats.get(peerId); const isFriend = friends.some(f => f.id === peerId);
                   return (
-                    <li key={peerId} className={`flex flex-col p-3 rounded-lg border transition-all ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-800/50 border-zinc-800/50'}`}>
-                      <div className="flex items-start justify-between mb-1">
-                        <div className="flex items-start gap-3 max-w-[70%]">
-                          <div className="relative">
-                            <div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center text-sm shadow-inner border border-zinc-700">
-                              {generateAvatar(peerId)}
-                            </div>
-                            <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-zinc-900 ${isStale ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse-slow'}`}></div>
-                          </div>
-                          <div className="flex flex-col overflow-hidden">
-                            <span className={`font-medium text-sm leading-tight truncate ${isFriend ? 'text-amber-400 font-bold' : 'text-emerald-100'}`}>
-                              {getDisplayName(peerId)}
-                            </span>
-                            <span className="font-mono text-[10px] text-zinc-500 mt-0.5 max-w-full truncate">#{peerId.substring(0, 16)}...</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <button 
-                            onClick={() => toggleFriend(peerId)}
-                            className={`p-1 rounded transition-colors ${isFriend ? 'text-amber-400 hover:bg-amber-500/20' : 'text-zinc-600 hover:text-amber-400 hover:bg-zinc-800'}`}
-                            title={isFriend ? "Remove Friend" : "Save as Permanent Friend"}
-                          >
-                            <Star className="w-4 h-4" fill={isFriend ? "currentColor" : "none"} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mt-1 pt-1 border-t border-white/5">
-                        <span className={`text-[10px] uppercase font-bold tracking-wider ${isFriend ? 'text-amber-500/70' : 'text-zinc-600'}`}>
-                          {isFriend ? 'Permanent' : 'Temporary'}
-                        </span>
-                        {stats && (
-                          <span className={`text-[10px] font-mono ${stats.latency < 100 ? 'text-emerald-400' : stats.latency < 300 ? 'text-amber-400' : 'text-rose-400'}`}>
-                            {stats.latency}ms ping
-                          </span>
-                        )}
-                      </div>
+                    <li key={peerId} className={`flex items-center gap-3 p-3 rounded-lg border ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-800/50 border-zinc-800'}`}>
+                      <div className="w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center text-lg flex-shrink-0">{generateAvatar(peerId)}</div>
+                      <div className="flex-1 overflow-hidden"><p className={`font-bold text-sm truncate ${isFriend ? 'text-amber-300' : 'text-zinc-200'}`}>{getDisplayName(peerId)}</p>{stats && <p className="text-[10px] text-emerald-400 font-mono">{stats.latency}ms</p>}</div>
+                      <button onClick={() => toggleFriend(peerId)} className={`p-1.5 rounded flex-shrink-0 ${isFriend ? 'text-amber-400' : 'text-zinc-600'}`}><Star className="w-4 h-4" fill={isFriend ? 'currentColor' : 'none'} /></button>
                     </li>
                   );
                 })}
               </ul>
             )}
-            
-            {/* Address Book / Offline Friends */}
-            <div className="mt-8 mb-4 border-t border-zinc-800 pt-6 flex items-center justify-between">
-              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-                <Star className="w-4 h-4 text-emerald-500" />
-                My Address Book ({friends.length})
-              </div>
+            <div className="flex items-center gap-2 mb-3 pt-3 border-t border-zinc-800">
+              <Star className="w-3.5 h-3.5 text-emerald-500" />
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Address Book ({friends.filter(f => f.id !== myId).length})</p>
             </div>
             {friends.filter(f => f.id !== myId).length === 0 ? (
-              <div className="text-center py-4 bg-zinc-900/40 rounded-lg border border-zinc-800/30 text-zinc-600 text-[11px] italic">No trusted friends saved.</div>
+              <p className="text-center py-3 text-zinc-600 text-[10px] italic">No trusted friends yet.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-1.5">
                 {friends.filter(f => f.id !== myId).map(friend => {
                   const isConnected = connections.has(friend.id);
                   return (
-                    <li 
-                      key={friend.id} 
-                      onClick={() => {
-                        if (!isConnected && peer) {
-                          const c = peer.connect(friend.id);
-                          setupConnection(c);
-                        }
-                      }}
-                      className={`flex flex-col p-3 rounded-lg border transition-all cursor-pointer ${isConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900/40 border-zinc-800/30 hover:bg-zinc-800/60'}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <div className="w-8 h-8 bg-zinc-950 rounded-full flex items-center justify-center text-sm shadow-inner border border-zinc-800">
-                              {generateAvatar(friend.id)}
-                            </div>
-                            <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-zinc-950 ${isConnected ? 'bg-emerald-500' : 'bg-zinc-600'}`}></div>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className={`font-bold text-sm leading-tight truncate ${isConnected ? 'text-amber-400' : 'text-zinc-300'}`}>
-                              {friend.name}
-                            </span>
-                            <span className="font-mono text-[10px] text-zinc-500 mt-0.5 uppercase tracking-wider">
-                              {isConnected ? 'Online Mesh' : 'Tap to Ping'}
-                            </span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setViewPeerInfo(friend.id);
-                          }}
-                          className="p-1 rounded text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors"
-                        >
-                          <Search className="w-4 h-4" />
-                        </button>
+                    <li key={friend.id} onClick={() => { if (!isConnected && peer) { setupConnection(peer.connect(friend.id)); } setShowSidebar(false); }}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer ${isConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900/40 border-zinc-800/30'}`}>
+                      <div className="relative flex-shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-lg">{generateAvatar(friend.id)}</div>
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950 ${isConnected ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <p className={`font-bold text-sm truncate ${isConnected ? 'text-amber-300' : 'text-zinc-300'}`}>{friend.name}</p>
+                        <p className="text-[9px] text-zinc-500 uppercase">{isConnected ? 'Online' : 'Tap to Ping'}</p>
                       </div>
                     </li>
                   );
@@ -756,7 +765,7 @@ export default function App() {
             )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Modern PWA Install Prompt (Overlay) */}
       {showInstallPrompt && !hasDismissedInstall && (
