@@ -81,6 +81,7 @@ export default function App() {
   const [hasDismissedInstall, setHasDismissedInstall] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showRadar, setShowRadar] = useState(false);
+  const [pendingPeerPrompt, setPendingPeerPrompt] = useState<string | null>(null);
   
   // Database State
   const [friends, setFriends] = useState<FriendNode[]>([]);
@@ -261,7 +262,7 @@ export default function App() {
   }, [connections]);
 
   const setupConnection = (conn: DataConnection) => {
-    conn.on('open', () => {
+    conn.on('open', async () => {
       setConnections(prev => {
         const newMap = new Map(prev);
         newMap.set(conn.peer, conn);
@@ -272,6 +273,12 @@ export default function App() {
         newMap.set(conn.peer, { latency: 0, lastSeen: Date.now() });
         return newMap;
       });
+      
+      // Verify if new connection relies on permanent trust
+      const currentFriends = await loadFriends();
+      if (!currentFriends.some(f => f.id === conn.peer)) {
+        setPendingPeerPrompt(conn.peer);
+      }
     });
 
     conn.on('data', async (data: any) => {
@@ -952,7 +959,7 @@ export default function App() {
       </div>
 
       {/* Modals Overlay */}
-      {(showQrModal || showConnectModal) && (
+      {(showQrModal || showConnectModal || pendingPeerPrompt) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           
           {/* QR Modal */}
@@ -1041,6 +1048,47 @@ export default function App() {
                   Connect
                 </button>
               </form>
+            </div>
+          )}
+
+          {/* New Peer Security Prompt Modal */}
+          {pendingPeerPrompt && (
+            <div className="bg-zinc-900 border border-emerald-500/50 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in slide-in-from-bottom-5 duration-300">
+              <div className="mb-6 text-center">
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+                  <Star className="w-6 h-6 text-emerald-400" />
+                </div>
+                <h2 className="text-xl font-bold text-white leading-tight mb-2">New Node Connected!</h2>
+                <p className="text-zinc-400 text-sm">
+                  Would you like to save this device permanently to your Address Book?
+                </p>
+                <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 mt-4 overflow-hidden">
+                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Crypto ID</div>
+                  <div className="font-mono text-xs text-emerald-400 truncate">{pendingPeerPrompt}</div>
+                  <div className="text-sm font-bold text-emerald-100 mt-2">
+                    {generateFoodName(pendingPeerPrompt)}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={async () => {
+                    await toggleFriend(pendingPeerPrompt);
+                    setPendingPeerPrompt(null);
+                  }}
+                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                >
+                  <Star className="w-4 h-4" fill="currentColor" />
+                  Save as Permanent Friend
+                </button>
+                <button
+                  onClick={() => setPendingPeerPrompt(null)}
+                  className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Keep Temporary
+                </button>
+              </div>
             </div>
           )}
         </div>
