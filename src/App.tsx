@@ -23,6 +23,8 @@ import {
   ScanLine
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
+import { generateKeys, KeyPair } from './lib/crypto';
+import { hasSeenMessage, markMessageSeen, queueMessage, getQueuedMessages, removeQueuedMessage } from './lib/store';
 
 // Types
 interface Message {
@@ -62,6 +64,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [connectId, setConnectId] = useState('');
+  const [keyPair, setKeyPair] = useState<KeyPair | null>(null);
   
   // UI States
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -112,13 +115,25 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Initialize Peer
+  // Initialize Peer and Crypto Identity
   useEffect(() => {
-    // Generate a random 6-character ID for simplicity in disaster scenarios
-    const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // 1. Identity Layer: Cryptographic Key Generation
+    const savedKeys = localStorage.getItem('meshpaw_keys');
+    let keys: KeyPair;
+    if (savedKeys) {
+      keys = JSON.parse(savedKeys);
+    } else {
+      keys = generateKeys();
+      localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
+    }
+    setKeyPair(keys);
+
+    // Your Address is derived from your Public Key
+    // Make it URL safe for PeerJS ID requirements
+    const peerId = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     
     setStatus('connecting');
-    const newPeer = new Peer(randomId, {
+    const newPeer = new Peer(peerId, {
       debug: 2
     });
 
@@ -155,6 +170,48 @@ export default function App() {
     };
   }, []);
 
+  // Store-and-Forward Flusher
+  useEffect(() => {
+    const queueInterval = setInterval(async () => {
+      // If we have active connections, check if there are any offline messages waiting in the database
+      if (connections.size === 0) return;
+      
+      try {
+        const queued = await getQueuedMessages();
+        if (queued.length === 0) return;
+
+        console.log(`Flushing ${queued.length} queued messages to mesh...`);
+        for (const msg of queued) {
+          let sentAny = false;
+          const messageData = {
+            type: 'message',
+            id: msg.id,
+            sourceId: msg.sourceId,
+            text: msg.payload,
+            timestamp: msg.timestamp,
+            ttl: msg.ttl
+          };
+
+          connections.forEach(conn => {
+            if (conn.open) {
+              conn.send(messageData);
+              sentAny = true;
+            }
+          });
+
+          // Remove from local queue once it's out in the wild
+          if (sentAny) {
+            await removeQueuedMessage(msg.id);
+          }
+        }
+      } catch (err) {
+        console.error('Queue flush failed:', err);
+      }
+    }, 5000); // Check every 5 seconds
+    
+    return () => clearInterval(queueInterval);
+  }, [connections]);
+
   // Ping interval
   useEffect(() => {
     const interval = setInterval(() => {
@@ -181,7 +238,7 @@ export default function App() {
       });
     });
 
-    conn.on('data', (data: any) => {
+    conn.on('data', async (data: any) => {
       setPeerStats(prev => {
         const newMap = new Map(prev);
         const current = (newMap.get(conn.peer) || { latency: 0, lastSeen: Date.now() }) as PeerStat;
@@ -190,14 +247,35 @@ export default function App() {
       });
 
       if (data.type === 'message') {
+        // --- ROUTING LAYER: Flood Routing (Gossip) & TTL ---
+        
+        // 1. Prevent infinite loops by checking database if seen
+        const seen = await hasSeenMessage(data.id);
+        if (seen) return; // Drop packet
+
+        // Mark as seen immediately
+        await markMessageSeen(data.id);
+
+        // Render to UI
         setMessages(prev => [...prev, {
-          id: data.id || Math.random().toString(36).substring(2, 9),
-          senderId: conn.peer,
+          id: data.id,
+          senderId: data.sourceId || conn.peer,
           text: data.text,
           timestamp: data.timestamp,
           isMine: false,
           reactions: {}
         }]);
+
+        // 2. Decrement TTL and Rebroadcast to everyone else
+        const ttl = typeof data.ttl === 'number' ? data.ttl : 7; // Default 7 hops
+        if (ttl > 1) {
+          const forwardedData = { ...data, ttl: ttl - 1 };
+          connections.forEach(forwardConn => {
+            if (forwardConn.open && forwardConn.peer !== conn.peer) {
+              forwardConn.send(forwardedData);
+            }
+          });
+        }
       } else if (data.type === 'reaction') {
         setMessages(prev => prev.map(msg => {
           if (msg.id === data.messageId) {
@@ -267,26 +345,28 @@ export default function App() {
     setConnectId('');
   };
 
-  const sendMessage = (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputMessage.trim() || connections.size === 0) return;
+    if (!inputMessage.trim()) return;
 
-    const messageId = Math.random().toString(36).substring(2, 9);
+    // The UUID of the packet
+    const messageId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
+    
+    // Packet Structure
     const messageData = {
       type: 'message',
       id: messageId,
+      sourceId: myId,  // Source ID
+      destId: 'ALL',   // Target ID
+      ttl: 7,          // Time to Live (7 hops)
       text: inputMessage.trim(),
       timestamp: Date.now()
     };
 
-    // Send to all connected peers (Gossip protocol basic)
-    connections.forEach(conn => {
-      if (conn.open) {
-        conn.send(messageData);
-      }
-    });
+    // Mark as seen so we don't echo our own messages
+    await markMessageSeen(messageId);
 
-    // Add to local UI
+    // Render locally immediately
     setMessages(prev => [...prev, {
       id: messageId,
       senderId: myId,
@@ -295,6 +375,27 @@ export default function App() {
       isMine: true,
       reactions: {}
     }]);
+
+    // Send to all connected peers
+    if (connections.size > 0) {
+      connections.forEach(conn => {
+        if (conn.open) {
+          conn.send(messageData);
+        }
+      });
+    } else {
+      // Store-and-Forward SQLite/IndexedDB approach
+      // If no one is around, store it!
+      await queueMessage({
+        id: messageData.id,
+        sourceId: messageData.sourceId,
+        destId: messageData.destId,
+        seqId: 1,
+        ttl: messageData.ttl,
+        payload: messageData.text,
+        timestamp: messageData.timestamp
+      });
+    }
 
     setInputMessage('');
   };
@@ -607,9 +708,17 @@ export default function App() {
               <div className="text-center max-w-xs">
                 <h3 className="text-zinc-300 font-medium mb-1">No messages yet</h3>
                 <p className="text-sm">Connect to a peer and start broadcasting to the local mesh.</p>
-                <p className="text-xs mt-4 text-amber-500/80 bg-amber-500/10 p-2 rounded border border-amber-500/20">
-                  Note: Messages hop from device to device. To send a message miles away without internet, you need a continuous chain of connected devices spanning the distance.
-                </p>
+                <div className="flex flex-col gap-2 mt-4 text-xs text-left">
+                  <div className="bg-emerald-500/10 p-2.5 rounded border border-emerald-500/20 text-emerald-400">
+                    <strong>Crypto Keys:</strong> Your identity is a Curve25519 PubKey.
+                  </div>
+                  <div className="bg-amber-500/10 p-2.5 rounded border border-amber-500/20 text-amber-500/90">
+                    <strong>Gossip Protocol:</strong> Messages hop up to 7 times (TTL) avoiding endless loops.
+                  </div>
+                  <div className="bg-blue-500/10 p-2.5 rounded border border-blue-500/20 text-blue-400">
+                    <strong>Off-grid Ready:</strong> Sending offline? Messages queue locally & forward when connected!
+                  </div>
+                </div>
               </div>
               <button 
                 onClick={() => setShowConnectModal(true)}
@@ -710,15 +819,14 @@ export default function App() {
                     sendMessage(e);
                   }
                 }}
-                placeholder={connections.size > 0 ? "Broadcast to mesh..." : "Connect to a peer first..."}
-                disabled={connections.size === 0}
+                placeholder={connections.size > 0 ? "Broadcast to mesh..." : "Offline mode: Messages will queue up..."}
                 className="w-full bg-transparent text-zinc-100 placeholder-zinc-500 p-3 sm:p-4 max-h-32 min-h-[52px] resize-none focus:outline-none disabled:opacity-50"
                 rows={1}
               />
             </div>
             <button
               type="submit"
-              disabled={!inputMessage.trim() || connections.size === 0}
+              disabled={!inputMessage.trim()}
               className="p-3 sm:p-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 rounded-xl transition-colors flex-shrink-0"
             >
               <Send className="w-5 h-5" />
