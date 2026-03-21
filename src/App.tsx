@@ -822,7 +822,7 @@ export default function App() {
               </button>
             </div>
             <div className="flex items-center gap-3 md:hidden">
-              <div className="font-mono text-sm font-bold bg-zinc-800 px-2 py-1 rounded">{myId || '---'}</div>
+              <div className="font-mono text-xs font-bold bg-zinc-800 px-2 py-1 rounded max-w-[120px] truncate">{myId ? `${myId.substring(0, 10)}...` : '---'}</div>
               <button 
                 onClick={() => setShowQrModal(true)} 
                 className="p-2 text-zinc-400 hover:text-white"
