@@ -198,8 +198,12 @@ export default function App() {
 
     // Your Address is derived from your Public Key
     // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
-    const base64Safe = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    const peerId = `mp-${base64Safe}-t`;
+    const base64Safe = (keys.publicKey || '').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    if (!base64Safe && keys.publicKey) {
+      // Fallback in case replace fails but key is present
+      console.warn('Replacement failed, using raw public key string');
+    }
+    const peerId = base64Safe ? `mp-${base64Safe}-t` : `node-${Math.random().toString(36).substring(7)}`;
     
     setStatus('connecting');
     const newPeer = new Peer(peerId, {
@@ -556,8 +560,27 @@ export default function App() {
   );
 
   const avgLatency = connections.size > 0 
-    ? Math.round(Array.from(peerStats.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + stat.latency, 0) / connections.size)
+    ? Math.round(Array.from(peerStats.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + (stat?.latency || 0), 0) / Math.max(1, connections.size))
     : 0;
+
+  if (!myId) {
+    return (
+      <div className="flex h-[100dvh] bg-zinc-950 items-center justify-center flex-col gap-6 font-sans">
+         <div className="w-24 h-24 bg-zinc-900 rounded-3xl flex items-center justify-center border border-zinc-800 shadow-2xl relative overflow-hidden">
+            <img src="/logo.png" alt="MeshNet" className="w-full h-full object-cover animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 to-transparent"></div>
+         </div>
+         <div className="flex flex-col items-center gap-2">
+            <h1 className="text-xl font-black text-white tracking-[0.3em] uppercase italic">MeshNet</h1>
+            <div className="flex items-center gap-2">
+               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,1)]"></div>
+               <span className="text-[10px] font-mono text-emerald-500/60 uppercase tracking-widest animate-pulse">Initializing Cryptographic Vault...</span>
+            </div>
+         </div>
+         <div className="absolute bottom-10 text-[10px] text-zinc-600 font-mono tracking-widest opacity-50 uppercase">Verifying Local Node Identity</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[100dvh] bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
