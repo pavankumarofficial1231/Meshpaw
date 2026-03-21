@@ -569,7 +569,7 @@ export default function App() {
     : 0;
 
   return (
-    <div style={{display:'flex', height:'100dvh', overflow:'hidden', background:'#09090b', color:'#f4f4f5'}}>
+    <div>
       
       {/* ── MOBILE OVERLAY BACKDROP ── */}
       {showSidebar && (
