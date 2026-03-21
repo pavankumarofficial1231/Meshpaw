@@ -68,6 +68,19 @@ const generateAvatar = (id: string) => {
   return AVATARS[Math.abs(hash) % AVATARS.length];
 };
 
+const MeshLogo = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" className="opacity-20" />
+    <path d="M50 35C45.5817 35 42 38.5817 42 43C42 47.4183 45.5817 51 50 51C54.4183 51 58 47.4183 58 43C58 38.5817 54.4183 35 50 35Z" fill="currentColor" />
+    <path d="M30 50C25.5817 50 22 53.5817 22 58C22 62.4183 25.5817 66 30 66C34.4183 66 38 62.4183 38 58C38 54.4183 34.4183 50 30 50Z" fill="currentColor" />
+    <path d="M70 50C65.5817 50 62 53.5817 62 58C62 62.4183 65.5817 66 70 66C74.4183 66 78 62.4183 78 58C78 54.4183 74.4183 50 70 50Z" fill="currentColor" />
+    <path d="M50 65C40 65 30 72 30 80C30 84.4183 33.5817 88 38 88H62C66.4183 88 70 84.4183 70 80C70 72 60 65 50 65Z" fill="currentColor" />
+    <path d="M50 15L50 30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
+    <path d="M20 30L35 45" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
+    <path d="M80 30L65 45" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
+  </svg>
+);
+
 export default function App() {
   const [myId, setMyId] = useState<string>('');
   const [peer, setPeer] = useState<Peer | null>(null);
@@ -560,35 +573,45 @@ export default function App() {
         md:relative md:translate-x-0
         ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex flex-col h-full">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-            <div className="flex items-center gap-2 font-bold text-lg tracking-tight text-emerald-400">
-              <PawPrint className="w-5 h-5" />
-              <span>MeshPaw</span>
+        <div className="flex flex-col h-full bg-gradient-to-b from-zinc-950 to-zinc-900">
+          <div className="p-6 border-b border-zinc-800/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/5">
+                <MeshLogo className="w-8 h-8 text-emerald-400 animate-pulse-slow" />
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
+                <span className="text-[9px] font-mono text-emerald-500/80 mt-1 uppercase tracking-[0.2em]">Off-Grid Protocol v2.1</span>
+              </div>
             </div>
-            <button className="md:hidden p-2 text-zinc-400 hover:text-white" onClick={() => setShowSidebar(false)}>
+            <button className="md:hidden p-2 text-zinc-500 hover:text-white bg-zinc-900 border border-zinc-800 rounded-lg" onClick={() => setShowSidebar(false)}>
               <X className="w-5 h-5" />
             </button>
           </div>
           
-          <div className="p-5 border-b border-zinc-800/50">
-            <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">My Node Identity</div>
-            <div className="flex items-center justify-between bg-zinc-900/60 rounded-xl p-3.5 border border-zinc-800/50 shadow-inner">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-zinc-950 rounded-full flex items-center justify-center text-2xl shadow-sm border border-zinc-800">
+          <div className="p-5">
+            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3 mb-6 flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,1)]"></div>
+              <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Offline Secure Vault Active</div>
+            </div>
+
+            <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 px-1">Cloud Node ID</div>
+            <div className="flex items-center justify-between bg-black/40 rounded-2xl p-4 border border-zinc-800/50 shadow-inner group transition-all hover:bg-black/60">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center text-3xl shadow-lg border border-zinc-800/50 group-hover:border-emerald-500/30 transition-colors">
                   {myId ? generateAvatar(myId) : '⏳'}
                 </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-lg text-emerald-400 leading-tight">{myId ? generateFoodName(myId) : '------'}</span>
-                  <span className="font-mono text-[10px] text-zinc-500 uppercase mt-1 tracking-wider">Local Broadcaster</span>
+                <div className="flex flex-col overflow-hidden">
+                  <span className="font-bold text-base text-zinc-100 leading-tight truncate">{myId ? generateFoodName(myId) : '------'}</span>
+                  <span className="font-mono text-[10px] text-emerald-500/60 mt-0.5 truncate uppercase">#MP-MESH-SAFE</span>
                 </div>
               </div>
               <button 
                 onClick={() => setShowQrModal(true)}
-                className="p-2.5 bg-zinc-800 hover:bg-zinc-700 active:scale-95 rounded-lg transition-all shadow-sm"
+                className="p-3 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-zinc-950 active:scale-90 rounded-xl transition-all shadow-sm border border-emerald-500/20"
                 title="Show QR Code"
               >
-                <QrCode className="w-5 h-5 text-emerald-400" />
+                <QrCode className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -956,14 +979,17 @@ export default function App() {
                 <h3 className="text-zinc-300 font-medium mb-1">No messages yet</h3>
                 <p className="text-sm">Connect to a peer and start broadcasting to the local mesh.</p>
                 <div className="flex flex-col gap-2 mt-4 text-xs text-left">
-                  <div className="bg-emerald-500/10 p-2.5 rounded border border-emerald-500/20 text-emerald-400">
-                    <strong>Crypto Keys:</strong> Your identity is a Curve25519 PubKey.
+                  <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-emerald-400 flex items-start gap-2">
+                    <Wifi className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div><strong>End-to-End Encrypted:</strong> Your keys stay in browser storage—never sent over the web.</div>
                   </div>
-                  <div className="bg-amber-500/10 p-2.5 rounded border border-amber-500/20 text-amber-500/90">
-                    <strong>Gossip Protocol:</strong> Messages hop up to 7 times (TTL) avoiding endless loops.
+                  <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-500/90 flex items-start gap-2">
+                    <Radar className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div><strong>Gossip Mesh:</strong> Messages hop through peers to reach targets outside your direct range.</div>
                   </div>
-                  <div className="bg-blue-500/10 p-2.5 rounded border border-blue-500/20 text-blue-400">
-                    <strong>Off-grid Ready:</strong> Sending offline? Messages queue locally & forward when connected!
+                  <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400 flex items-start gap-2">
+                    <WifiOff className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div><strong>Zero Internet Native:</strong> Assets are cached for airplane-mode support. Scan QR via Local LAN.</div>
                   </div>
                 </div>
               </div>
