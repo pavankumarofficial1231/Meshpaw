@@ -855,12 +855,12 @@ export default function App() {
               </div>
               
               <div className="bg-white p-4 rounded-xl flex justify-center mb-6">
-                <QRCodeSVG value={myId} size={200} level="H" />
+                <QRCodeSVG value={myId} size={200} level="M" />
               </div>
               
-              <div className="bg-zinc-950 rounded-lg p-4 border border-zinc-800 text-center">
-                <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Manual Entry Code</div>
-                <div className="font-mono text-3xl font-bold text-emerald-400 tracking-widest">{myId}</div>
+              <div className="bg-zinc-950 rounded-lg p-3 border border-zinc-800 text-center">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Crypto Address</div>
+                <div className="font-mono text-xs font-bold text-emerald-400 break-all">{myId}</div>
               </div>
             </div>
           )}
@@ -892,13 +892,13 @@ export default function App() {
               {showScanner && (
                 <div className="mb-6 rounded-xl overflow-hidden border border-zinc-800 bg-black max-h-[250px] relative">
                   <Scanner onScan={(result) => {
-                    const scannedId = result?.[0]?.rawValue?.toUpperCase();
-                    if (scannedId && scannedId.length === 6) {
-                      setConnectId(scannedId);
+                    const scannedId = result?.[0]?.rawValue;
+                    if (scannedId && scannedId.length > 20) {
+                      setConnectId(scannedId.toUpperCase());
                       setShowScanner(false);
                     }
                   }} />
-                  <div className="absolute font-mono text-center w-full bottom-2 left-0 text-emerald-400 text-xs bg-black/50 py-1">Scanning for 6-char ID...</div>
+                  <div className="absolute font-mono text-center w-full bottom-2 left-0 text-emerald-400 text-xs bg-black/50 py-1">Scanning Crypto ID...</div>
                 </div>
               )}
               
@@ -911,16 +911,15 @@ export default function App() {
                     type="text"
                     value={connectId}
                     onChange={(e) => setConnectId(e.target.value.toUpperCase())}
-                    placeholder="e.g. A1B2C3"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-white font-mono text-lg tracking-widest focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all uppercase"
+                    placeholder="e.g. 7A9B..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-white font-mono text-sm tracking-wider focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all uppercase"
                     autoFocus
-                    maxLength={6}
                   />
                 </div>
                 
                 <button
                   type="submit"
-                  disabled={!connectId.trim() || connectId.length < 3}
+                  disabled={!connectId.trim() || connectId.length < 20}
                   className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-bold rounded-lg transition-colors"
                 >
                   Connect
