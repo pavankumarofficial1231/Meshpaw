@@ -10,6 +10,12 @@ export interface MeshMessage {
   timestamp: number;
 }
 
+export interface FriendNode {
+  id: string;        // Node ID (Public Key)
+  name: string;      // Assigned or generated name
+  addedAt: number;   // Timestamp
+}
+
 interface MeshDB extends DBSchema {
   seenMessages: {
     key: string;
@@ -19,19 +25,26 @@ interface MeshDB extends DBSchema {
     key: string;
     value: MeshMessage;
   };
+  friends: {
+    key: string;
+    value: FriendNode;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<MeshDB>> | null = null;
 
 export const initDB = () => {
   if (!dbPromise) {
-    dbPromise = openDB<MeshDB>('MeshPawDB', 1, {
-      upgrade(db) {
+    dbPromise = openDB<MeshDB>('MeshPawDB', 2, {
+      upgrade(db, oldVersion) {
         if (!db.objectStoreNames.contains('seenMessages')) {
           db.createObjectStore('seenMessages', { keyPath: 'id' });
         }
         if (!db.objectStoreNames.contains('queuedMessages')) {
           db.createObjectStore('queuedMessages', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('friends')) {
+          db.createObjectStore('friends', { keyPath: 'id' });
         }
       },
     });
@@ -68,4 +81,20 @@ export const getQueuedMessages = async (): Promise<MeshMessage[]> => {
 export const removeQueuedMessage = async (id: string) => {
   const db = await initDB();
   await db.delete('queuedMessages', id);
+};
+
+// --- Friends / Address Book ---
+export const saveFriend = async (friend: FriendNode) => {
+  const db = await initDB();
+  await db.put('friends', friend);
+};
+
+export const loadFriends = async (): Promise<FriendNode[]> => {
+  const db = await initDB();
+  return db.getAll('friends');
+};
+
+export const removeFriend = async (id: string) => {
+  const db = await initDB();
+  await db.delete('friends', id);
 };

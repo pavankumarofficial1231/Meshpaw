@@ -20,11 +20,13 @@ import {
   Search,
   SmilePlus,
   Download,
-  ScanLine
+  ScanLine,
+  Radar,
+  Star
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { generateKeys, KeyPair } from './lib/crypto';
-import { hasSeenMessage, markMessageSeen, queueMessage, getQueuedMessages, removeQueuedMessage } from './lib/store';
+import { hasSeenMessage, markMessageSeen, queueMessage, getQueuedMessages, removeQueuedMessage, loadFriends, saveFriend, removeFriend, FriendNode } from './lib/store';
 
 // Types
 interface Message {
@@ -78,8 +80,42 @@ export default function App() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [hasDismissedInstall, setHasDismissedInstall] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showRadar, setShowRadar] = useState(false);
+  
+  // Database State
+  const [friends, setFriends] = useState<FriendNode[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load Friends from DB
+  useEffect(() => {
+    loadFriends().then(setFriends);
+  }, []);
+
+  const toggleFriend = async (peerId: string) => {
+    const isFriend = friends.find(f => f.id === peerId);
+    if (isFriend) {
+      await removeFriend(peerId);
+      setFriends(prev => prev.filter(f => f.id !== peerId));
+    } else {
+      const newFriend: FriendNode = {
+        id: peerId,
+        name: generateFoodName(peerId),
+        addedAt: Date.now()
+      };
+      await saveFriend(newFriend);
+      setFriends(prev => [...prev, newFriend]);
+    }
+  };
+
+  const getDisplayName = (id: string, excludeFriendName = false) => {
+    if (!id) return 'Unknown Node';
+    if (!excludeFriendName) {
+      const friend = friends.find(f => f.id === id);
+      if (friend) return friend.name;
+    }
+    return generateFoodName(id);
+  };
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -493,7 +529,7 @@ export default function App() {
             <div className="flex items-center justify-between bg-zinc-950 rounded-lg p-3 border border-zinc-800">
               <div className="flex flex-col">
                 <span className="font-bold text-lg text-emerald-400 leading-tight">{myId ? generateFoodName(myId) : '------'}</span>
-                <span className="font-mono text-xs text-zinc-500 uppercase">ID: {myId || '---'}</span>
+                <span className="font-mono text-[10px] text-zinc-500 uppercase mt-0.5">My Local Node</span>
               </div>
               <button 
                 onClick={() => setShowQrModal(true)}
@@ -529,28 +565,40 @@ export default function App() {
                 {Array.from(connections.keys()).map((peerId: string) => {
                   const stats = peerStats.get(peerId);
                   const isStale = stats && (Date.now() - stats.lastSeen > 15000);
+                  const isFriend = friends.some(f => f.id === peerId);
                   
                   return (
-                    <li key={peerId} className="flex flex-col p-3 rounded-lg bg-zinc-800/50 border border-zinc-800/50">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${isStale ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></div>
-                          <div className="flex flex-col">
-                            <span className="font-medium text-emerald-100 text-sm leading-tight">{generateFoodName(peerId)}</span>
-                            <span className="font-mono text-[10px] text-zinc-500">#{peerId}</span>
+                    <li key={peerId} className={`flex flex-col p-3 rounded-lg border transition-all ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-800/50 border-zinc-800/50'}`}>
+                      <div className="flex items-start justify-between mb-1">
+                        <div className="flex items-start gap-2 max-w-[70%]">
+                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 border-2 border-zinc-900 ${isStale ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse-slow'}`}></div>
+                          <div className="flex flex-col overflow-hidden">
+                            <span className={`font-medium text-sm leading-tight truncate ${isFriend ? 'text-amber-400 font-bold' : 'text-emerald-100'}`}>
+                              {getDisplayName(peerId)}
+                            </span>
+                            <span className="font-mono text-[10px] text-zinc-500 mt-0.5 max-w-full truncate">#{peerId.substring(0, 16)}...</span>
                           </div>
                         </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <button 
+                            onClick={() => toggleFriend(peerId)}
+                            className={`p-1 rounded transition-colors ${isFriend ? 'text-amber-400 hover:bg-amber-500/20' : 'text-zinc-600 hover:text-amber-400 hover:bg-zinc-800'}`}
+                            title={isFriend ? "Remove Friend" : "Save as Permanent Friend"}
+                          >
+                            <Star className="w-4 h-4" fill={isFriend ? "currentColor" : "none"} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-1 pt-1 border-t border-white/5">
+                        <span className={`text-[10px] uppercase font-bold tracking-wider ${isFriend ? 'text-amber-500/70' : 'text-zinc-600'}`}>
+                          {isFriend ? 'Permanent' : 'Temporary'}
+                        </span>
                         {stats && (
-                          <span className={`text-xs font-mono ${stats.latency < 100 ? 'text-emerald-400' : stats.latency < 300 ? 'text-amber-400' : 'text-rose-400'}`}>
-                            {stats.latency}ms
+                          <span className={`text-[10px] font-mono ${stats.latency < 100 ? 'text-emerald-400' : stats.latency < 300 ? 'text-amber-400' : 'text-rose-400'}`}>
+                            {stats.latency}ms ping
                           </span>
                         )}
                       </div>
-                      {stats && (
-                        <div className="text-[10px] text-zinc-500 text-right">
-                          Last seen: {formatTimeWithSeconds(stats.lastSeen)}
-                        </div>
-                      )}
                     </li>
                   );
                 })}
@@ -650,6 +698,14 @@ export default function App() {
               <Search className="w-5 h-5" />
               <span className="text-xs font-medium hidden lg:inline">Search</span>
             </button>
+            <button 
+              onClick={() => setShowRadar(!showRadar)}
+              className={`p-2 rounded-full transition-colors flex items-center gap-2 ${showRadar ? 'bg-emerald-500 text-zinc-950' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
+              title="Mesh Radar"
+            >
+              <Radar className="w-5 h-5" />
+              <span className="text-xs font-medium hidden lg:inline">Radar</span>
+            </button>
             <div className="hidden md:flex items-center gap-3">
               <button 
                 onClick={() => setShowQrModal(true)} 
@@ -698,8 +754,65 @@ export default function App() {
           </div>
         )}
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        {/* Radar View */}
+        {showRadar ? (
+          <div className="flex-1 overflow-hidden relative flex flex-col items-center justify-center p-6 bg-zinc-950">
+            <div className="text-center z-10 mb-8 absolute top-8">
+              <h2 className="text-2xl font-bold text-emerald-400 tracking-wider uppercase mb-2">Local Mesh Radar</h2>
+              <p className="text-zinc-400 max-w-md mx-auto text-sm">Visualizing active P2P connections over local network/QR limits. Operates independently of the global Internet.</p>
+            </div>
+            
+            <div className="relative w-72 h-72 sm:w-96 sm:h-96 md:w-[500px] md:h-[500px] rounded-full border border-emerald-500/20 bg-emerald-950/20 shadow-[0_0_100px_rgba(16,185,129,0.1)] flex items-center justify-center overflow-hidden">
+              {/* Radar Circles */}
+              <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-75"></div>
+              <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-50"></div>
+              <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-25"></div>
+              <div className="absolute w-full h-[1px] bg-emerald-500/10"></div>
+              <div className="absolute h-full w-[1px] bg-emerald-500/10"></div>
+              
+              {/* Sweeping Scanner */}
+              <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 bg-gradient-to-br from-emerald-500/30 to-transparent origin-top-left animate-[spin_4s_linear_infinite] rounded-tr-full shadow-[0_0_20px_rgba(16,185,129,0.5)]">
+                <div className="absolute left-0 bottom-0 w-full h-[2px] bg-emerald-400 blur-[1px]"></div>
+              </div>
+
+              {/* Center You */}
+              <div className="absolute z-20 flex flex-col items-center">
+                <div className="w-4 h-4 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.8)] border-2 border-zinc-900"></div>
+                <div className="bg-zinc-900/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-white mt-2 border border-emerald-500/30">YOU</div>
+              </div>
+
+              {/* Peers */}
+              {Array.from(connections.keys()).map((peerId: string, index: number) => {
+                const isFriend = friends.some(f => f.id === peerId);
+                const angle = (index * (360 / Math.max(1, connections.size))) * (Math.PI / 180);
+                const distance = 30 + (Math.abs(peerId.charCodeAt(0) % 50)); // Pseudo-random 30-80% distance
+                const x = `calc(50% + ${Math.cos(angle) * distance}%)`;
+                const y = `calc(50% + ${Math.sin(angle) * distance}%)`;
+                
+                return (
+                  <div key={peerId} className="absolute z-10 flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2 transition-all duration-1000" style={{ left: x, top: y }}>
+                    <div className={`w-3 h-3 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)] border-2 border-zinc-900 ${isFriend ? 'bg-amber-400' : 'bg-white'}`}></div>
+                    <div className={`mt-2 px-2 py-1 rounded backdrop-blur-md text-[10px] font-bold border ${isFriend ? 'bg-amber-950/60 text-amber-200 border-amber-500/40' : 'bg-zinc-900/60 text-white border-white/20'}`}>
+                      {getDisplayName(peerId)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="absolute bottom-8 flex gap-4 text-xs font-mono">
+              <div className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="text-zinc-400">Temporary Node</span>
+              </div>
+              <div className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800">
+                <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]"></div>
+                <span className="text-zinc-400">Permanent Friend</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-zinc-800">
@@ -741,8 +854,8 @@ export default function App() {
                   <div key={msg.id} className={`flex flex-col ${msg.isMine ? 'items-end' : 'items-start'}`}>
                     {showSender && !msg.isMine && (
                       <div className="mb-1 ml-1 flex items-baseline gap-1.5">
-                        <span className="text-xs font-bold text-emerald-300">{generateFoodName(msg.senderId)}</span>
-                        <span className="text-[10px] font-mono text-zinc-600">#{msg.senderId}</span>
+                        <span className="text-xs font-bold text-emerald-300">{getDisplayName(msg.senderId)}</span>
+                        <span className="text-[10px] font-mono text-zinc-600">#{msg.senderId.substring(0, 10)}</span>
                       </div>
                     )}
                     
@@ -805,8 +918,10 @@ export default function App() {
             </div>
           )}
         </div>
+        )}
 
         {/* Input Area */}
+        {!showRadar && (
         <div className="p-4 bg-zinc-950 border-t border-zinc-800">
           <form onSubmit={sendMessage} className="max-w-3xl mx-auto relative flex items-end gap-2">
             <div className="relative flex-1 bg-zinc-900 rounded-xl border border-zinc-800 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/50 transition-all">
@@ -827,12 +942,13 @@ export default function App() {
             <button
               type="submit"
               disabled={!inputMessage.trim()}
-              className="p-3 sm:p-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 rounded-xl transition-colors flex-shrink-0"
+                  className="p-3 sm:p-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 rounded-xl transition-colors flex-shrink-0"
             >
               <Send className="w-5 h-5" />
             </button>
           </form>
         </div>
+        )}
       </div>
 
       {/* Modals Overlay */}
