@@ -68,34 +68,6 @@ const generateAvatar = (id: string) => {
   return AVATARS[Math.abs(hash) % AVATARS.length];
 };
 
-const MeshLogo = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    {/* Outer Glow Ring */}
-    <circle cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 4" className="opacity-30" />
-    
-    {/* Interconnected Mesh Lattice nodes */}
-    <path d="M50 30L35 45L50 60L65 45L50 30Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-    <path d="M35 45L25 60L40 70L50 60L35 45Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-    <path d="M65 45L75 60L60 70L50 60L65 45Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-    <path d="M40 70L50 85L60 70L40 70Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-    
-    {/* Central Core Nodes */}
-    <circle cx="50" cy="30" r="2.5" fill="currentColor" />
-    <circle cx="35" cy="45" r="2.5" fill="currentColor" />
-    <circle cx="65" cy="45" r="2.5" fill="currentColor" />
-    <circle cx="50" cy="60" r="3.5" fill="currentColor" className="animate-pulse" />
-    <circle cx="25" cy="60" r="2.5" fill="currentColor" />
-    <circle cx="75" cy="60" r="2.5" fill="currentColor" />
-    <circle cx="40" cy="70" r="2.5" fill="currentColor" />
-    <circle cx="60" cy="70" r="2.5" fill="currentColor" />
-    <circle cx="50" cy="85" r="2.5" fill="currentColor" />
-    
-    {/* Inner Connectivity Lines */}
-    <line x1="50" y1="30" x2="50" y2="60" stroke="currentColor" strokeWidth="0.5" strokeDasharray="1 1" />
-    <line x1="25" y1="60" x2="75" y2="60" stroke="currentColor" strokeWidth="0.5" strokeDasharray="1 1" />
-  </svg>
-);
-
 export default function App() {
   const [myId, setMyId] = useState<string>('');
   const [peer, setPeer] = useState<Peer | null>(null);
@@ -205,14 +177,20 @@ export default function App() {
   // Initialize Peer and Crypto Identity
   useEffect(() => {
     // 1. Identity Layer: Cryptographic Key Generation
-    const savedKeys = localStorage.getItem('meshpaw_keys');
-    const savedSignaling = localStorage.getItem('meshpaw_signaling');
-    if (savedSignaling) setSignalingHost(savedSignaling);
-
     let keys: KeyPair;
-    if (savedKeys) {
-      keys = JSON.parse(savedKeys);
-    } else {
+    try {
+      const savedKeys = localStorage.getItem('meshpaw_keys');
+      const savedSignaling = localStorage.getItem('meshpaw_signaling');
+      if (savedSignaling) setSignalingHost(savedSignaling);
+
+      if (savedKeys) {
+        keys = JSON.parse(savedKeys);
+      } else {
+        keys = generateKeys();
+        localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
+      }
+    } catch (e) {
+      console.error('Storage parsing failed, resetting identity');
       keys = generateKeys();
       localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
     }
@@ -602,8 +580,8 @@ export default function App() {
         <div className="flex flex-col h-full bg-gradient-to-b from-zinc-950 to-zinc-900">
           <div className="p-6 border-b border-zinc-800/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/5">
-                <MeshLogo className="w-8 h-8 text-emerald-400 animate-pulse-slow" />
+              <div className="w-12 h-12 bg-zinc-950 rounded-2xl flex items-center justify-center border border-zinc-800 shadow-xl overflow-hidden">
+                <img src="/logo.png" alt="MeshPaw" className="w-full h-full object-cover animate-pulse-slow" />
               </div>
               <div className="flex flex-col">
                 <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
