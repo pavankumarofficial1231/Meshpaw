@@ -19,8 +19,10 @@ import {
   MessageSquare,
   Search,
   SmilePlus,
-  Download
+  Download,
+  ScanLine
 } from 'lucide-react';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 // Types
 interface Message {
@@ -72,6 +74,7 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [hasDismissedInstall, setHasDismissedInstall] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -517,9 +520,9 @@ export default function App() {
                   <span className="hidden sm:inline">Connecting...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-rose-400 bg-rose-400/10 px-2.5 py-1 rounded-full text-xs font-medium">
-                  <WifiOff className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Offline</span>
+                <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium ${connections.size > 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-rose-400 bg-rose-400/10'}`}>
+                  {connections.size > 0 ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+                  <span className="hidden sm:inline">{connections.size > 0 ? 'Local Mesh' : 'Offline'}</span>
                 </div>
               )}
             </div>
@@ -764,10 +767,32 @@ export default function App() {
                 <X className="w-4 h-4" />
               </button>
               
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-white">Add Peer</h2>
-                <p className="text-zinc-400 text-sm mt-1">Enter a node ID to establish connection</p>
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Add Peer</h2>
+                  <p className="text-zinc-400 text-sm mt-1">Enter a node ID to establish connection</p>
+                </div>
+                <button 
+                  onClick={() => setShowScanner(!showScanner)}
+                  className={`p-2 rounded-xl transition-colors ${showScanner ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-emerald-400 hover:bg-zinc-700'}`}
+                  title="Scan QR Code"
+                >
+                  <ScanLine className="w-5 h-5" />
+                </button>
               </div>
+
+              {showScanner && (
+                <div className="mb-6 rounded-xl overflow-hidden border border-zinc-800 bg-black max-h-[250px] relative">
+                  <Scanner onScan={(result) => {
+                    const scannedId = result?.[0]?.rawValue?.toUpperCase();
+                    if (scannedId && scannedId.length === 6) {
+                      setConnectId(scannedId);
+                      setShowScanner(false);
+                    }
+                  }} />
+                  <div className="absolute font-mono text-center w-full bottom-2 left-0 text-emerald-400 text-xs bg-black/50 py-1">Scanning for 6-char ID...</div>
+                </div>
+              )}
               
               <form onSubmit={connectToPeer}>
                 <div className="mb-6">
