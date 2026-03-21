@@ -383,7 +383,7 @@ export default function App() {
     e.preventDefault();
     if (!peer || !connectId.trim() || connectId === myId) return;
     
-    const targetId = connectId.trim().toUpperCase();
+    const targetId = connectId.trim();
     
     if (connections.has(targetId)) {
       setShowConnectModal(false);
@@ -1040,7 +1040,7 @@ export default function App() {
                   <Scanner onScan={(result) => {
                     const scannedId = result?.[0]?.rawValue;
                     if (scannedId && scannedId.length > 20) {
-                      setConnectId(scannedId.toUpperCase());
+                      setConnectId(scannedId);
                       setShowScanner(false);
                     }
                   }} />
@@ -1056,9 +1056,9 @@ export default function App() {
                   <input
                     type="text"
                     value={connectId}
-                    onChange={(e) => setConnectId(e.target.value.toUpperCase())}
+                    onChange={(e) => setConnectId(e.target.value)}
                     placeholder="e.g. 7A9B..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-white font-mono text-sm tracking-wider focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all uppercase"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-white font-mono text-sm tracking-wider focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all cursor-text"
                     autoFocus
                   />
                 </div>
