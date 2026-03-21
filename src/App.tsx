@@ -56,6 +56,7 @@ export default function App() {
   const [activeReactionMsg, setActiveReactionMsg] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [hasDismissedInstall, setHasDismissedInstall] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +82,11 @@ export default function App() {
       setShowInstallPrompt(false);
     }
     setDeferredPrompt(null);
+  };
+
+  const dismissInstall = () => {
+    setShowInstallPrompt(false);
+    setHasDismissedInstall(true);
   };
 
   // Auto-scroll to bottom of messages
@@ -160,7 +166,7 @@ export default function App() {
     conn.on('data', (data: any) => {
       setPeerStats(prev => {
         const newMap = new Map(prev);
-        const current = newMap.get(conn.peer) || { latency: 0, lastSeen: Date.now() };
+        const current = (newMap.get(conn.peer) || { latency: 0, lastSeen: Date.now() }) as PeerStat;
         newMap.set(conn.peer, { ...current, lastSeen: Date.now() });
         return newMap;
       });
@@ -199,7 +205,7 @@ export default function App() {
         const latency = Date.now() - data.timestamp;
         setPeerStats(prev => {
           const newMap = new Map(prev);
-          const current = newMap.get(conn.peer) || { latency: 0, lastSeen: Date.now() };
+          const current = (newMap.get(conn.peer) || { latency: 0, lastSeen: Date.now() }) as PeerStat;
           newMap.set(conn.peer, { ...current, latency });
           return newMap;
         });
@@ -340,7 +346,7 @@ export default function App() {
   );
 
   const avgLatency = connections.size > 0 
-    ? Math.round(Array.from(peerStats.values()).reduce((acc, stat) => acc + stat.latency, 0) / connections.size)
+    ? Math.round(Array.from(peerStats.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + stat.latency, 0) / connections.size)
     : 0;
 
   return (
@@ -429,6 +435,33 @@ export default function App() {
         </div>
       </div>
 
+      {/* Modern PWA Install Prompt (Overlay) */}
+      {showInstallPrompt && !hasDismissedInstall && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-md bg-emerald-600 rounded-2xl p-5 shadow-2xl flex flex-col sm:flex-row items-center gap-4 animate-in slide-in-from-bottom-10 duration-500 border border-emerald-500/30">
+          <div className="bg-white/20 p-3 rounded-xl">
+            <Download className="w-8 h-8 text-white" />
+          </div>
+          <div className="flex-1 text-center sm:text-left">
+            <h3 className="font-bold text-white text-lg leading-tight">Install MeshPaw</h3>
+            <p className="text-emerald-50 text-sm opacity-90">Install this web app for a better, off-grid experience.</p>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button 
+              onClick={dismissInstall}
+              className="px-4 py-2 text-white/80 hover:text-white text-sm font-medium transition-colors"
+            >
+              Later
+            </button>
+            <button 
+              onClick={handleInstallClick}
+              className="flex-1 sm:flex-none px-6 py-2.5 bg-white text-emerald-700 font-bold rounded-xl shadow-lg hover:bg-emerald-50 active:scale-95 transition-all text-sm"
+            >
+              Install Now
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0 bg-zinc-950 relative">
         
@@ -478,7 +511,7 @@ export default function App() {
                 className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-full text-xs font-medium transition-colors border border-emerald-500/20"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Install App</span>
+                <span>Install</span>
               </button>
             )}
             <button 
@@ -486,18 +519,29 @@ export default function App() {
                 setShowSearch(!showSearch);
                 if (showSearch) setSearchQuery('');
               }} 
-              className={`p-2 rounded-full transition-colors ${showSearch ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
+              className={`p-2 rounded-full transition-colors flex items-center gap-2 ${showSearch ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
+              title="Search Messages"
             >
               <Search className="w-5 h-5" />
+              <span className="text-xs font-medium hidden lg:inline">Search</span>
             </button>
             <div className="hidden md:flex items-center gap-3">
-              <button onClick={() => setShowQrModal(true)} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-full transition-colors">
+              <button 
+                onClick={() => setShowQrModal(true)} 
+                className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-full transition-colors flex items-center gap-2"
+                title="My QR Code"
+              >
                 <QrCode className="w-5 h-5" />
+                <span className="text-xs font-medium hidden lg:inline">My QR</span>
               </button>
             </div>
             <div className="flex items-center gap-3 md:hidden">
               <div className="font-mono text-sm font-bold bg-zinc-800 px-2 py-1 rounded">{myId || '---'}</div>
-              <button onClick={() => setShowQrModal(true)} className="p-2 text-zinc-400 hover:text-white">
+              <button 
+                onClick={() => setShowQrModal(true)} 
+                className="p-2 text-zinc-400 hover:text-white"
+                title="My QR Code"
+              >
                 <QrCode className="w-5 h-5" />
               </button>
             </div>
@@ -596,9 +640,9 @@ export default function App() {
                       )}
                     </div>
 
-                    {msg.reactions && Object.values(msg.reactions).some(users => users.length > 0) && (
+                    {msg.reactions && Object.values(msg.reactions as Record<string, string[]>).some((users: string[]) => users.length > 0) && (
                       <div className={`flex flex-wrap gap-1 mt-1 ${msg.isMine ? 'justify-end' : 'justify-start'}`}>
-                        {Object.entries(msg.reactions).map(([emoji, users]) => {
+                        {Object.entries(msg.reactions as Record<string, string[]>).map(([emoji, users]: [string, string[]]) => {
                           if (users.length === 0) return null;
                           const iReacted = users.includes(myId);
                           return (

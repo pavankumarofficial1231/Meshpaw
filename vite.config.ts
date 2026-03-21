@@ -26,6 +26,9 @@ export default defineConfig(({mode}) => {
               type: 'image/svg+xml'
             }
           ]
+        },
+        devOptions: {
+          enabled: true
         }
       })
     ],
