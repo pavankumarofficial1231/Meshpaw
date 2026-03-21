@@ -37,6 +37,21 @@ interface PeerStat {
   lastSeen: number;
 }
 
+const ADJECTIVES = ['Sugary', 'Spicy', 'Crispy', 'Crunchy', 'Salty', 'Sweet', 'Sour', 'Toasted', 'Glazed', 'Fried', 'Cheesy', 'Melted', 'Jolly', 'Sizzling', 'Buttery', 'Frosted', 'Sticky', 'Gooey', 'Bubbly', 'Zesty'];
+const NOUNS = ['Bites', 'Tacos', 'Pickles', 'Donuts', 'Bacon', 'Noodles', 'Waffles', 'Burgers', 'Pancakes', 'Burritos', 'Sushi', 'Muffins', 'Biscuits', 'Cookies', 'Pretzels', 'Cupcakes', 'Fries', 'Snacks', 'Nuggets', 'Pizzas'];
+
+const generateFoodName = (id: string) => {
+  if (!id) return 'Unknown Food';
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const adjIndex = Math.abs(hash) % ADJECTIVES.length;
+  const nounIndex = Math.abs(hash * 3) % NOUNS.length;
+  
+  return `${ADJECTIVES[adjIndex]} ${NOUNS[nounIndex]}`;
+};
+
 export default function App() {
   const [myId, setMyId] = useState<string>('');
   const [peer, setPeer] = useState<Peer | null>(null);
@@ -372,7 +387,10 @@ export default function App() {
           <div className="p-4 border-b border-zinc-800">
             <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">My Node</div>
             <div className="flex items-center justify-between bg-zinc-950 rounded-lg p-3 border border-zinc-800">
-              <div className="font-mono text-lg font-bold text-white tracking-widest">{myId || '------'}</div>
+              <div className="flex flex-col">
+                <span className="font-bold text-lg text-emerald-400 leading-tight">{myId ? generateFoodName(myId) : '------'}</span>
+                <span className="font-mono text-xs text-zinc-500 uppercase">ID: {myId || '---'}</span>
+              </div>
               <button 
                 onClick={() => setShowQrModal(true)}
                 className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors"
@@ -404,7 +422,7 @@ export default function App() {
               </div>
             ) : (
               <ul className="space-y-2">
-                {Array.from(connections.keys()).map(peerId => {
+                {Array.from(connections.keys()).map((peerId: string) => {
                   const stats = peerStats.get(peerId);
                   const isStale = stats && (Date.now() - stats.lastSeen > 15000);
                   
@@ -413,7 +431,10 @@ export default function App() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${isStale ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`}></div>
-                          <span className="font-mono font-medium text-sm">{peerId}</span>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-emerald-100 text-sm leading-tight">{generateFoodName(peerId)}</span>
+                            <span className="font-mono text-[10px] text-zinc-500">#{peerId}</span>
+                          </div>
                         </div>
                         {stats && (
                           <span className={`text-xs font-mono ${stats.latency < 100 ? 'text-emerald-400' : stats.latency < 300 ? 'text-amber-400' : 'text-rose-400'}`}>
@@ -607,7 +628,10 @@ export default function App() {
                 return (
                   <div key={msg.id} className={`flex flex-col ${msg.isMine ? 'items-end' : 'items-start'}`}>
                     {showSender && !msg.isMine && (
-                      <span className="text-xs font-mono text-zinc-500 mb-1 ml-1">{msg.senderId}</span>
+                      <div className="mb-1 ml-1 flex items-baseline gap-1.5">
+                        <span className="text-xs font-bold text-emerald-300">{generateFoodName(msg.senderId)}</span>
+                        <span className="text-[10px] font-mono text-zinc-600">#{msg.senderId}</span>
+                      </div>
                     )}
                     
                     <div className={`flex items-center gap-2 ${msg.isMine ? 'flex-row-reverse' : 'flex-row'} relative group`}>
