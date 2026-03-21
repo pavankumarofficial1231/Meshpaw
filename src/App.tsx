@@ -95,13 +95,22 @@ export default function App() {
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [showQrModal, setShowQrModal] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(window.innerWidth >= 768);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeReactionMsg, setActiveReactionMsg] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [hasDismissedInstall, setHasDismissedInstall] = useState(false);
+  
+  // Update state if window size changes
+  useEffect(() => {
+    const checkSize = () => {
+      if (window.innerWidth >= 768) setShowSidebar(true);
+    };
+    window.addEventListener('resize', checkSize);
+    return () => window.removeEventListener('resize', checkSize);
+  }, []);
   const [showScanner, setShowScanner] = useState(false);
   const [showRadar, setShowRadar] = useState(false);
   const [pendingPeerPrompt, setPendingPeerPrompt] = useState<string | null>(null);
@@ -696,11 +705,11 @@ export default function App() {
                 My Address Book ({friends.length})
               </div>
             </div>
-            {friends.length === 0 ? (
+            {friends.filter(f => f.id !== myId).length === 0 ? (
               <div className="text-center py-4 bg-zinc-900/40 rounded-lg border border-zinc-800/30 text-zinc-600 text-[11px] italic">No trusted friends saved.</div>
             ) : (
               <ul className="space-y-2">
-                {friends.map(friend => {
+                {friends.filter(f => f.id !== myId).map(friend => {
                   const isConnected = connections.has(friend.id);
                   return (
                     <li 
@@ -751,26 +760,26 @@ export default function App() {
 
       {/* Modern PWA Install Prompt (Overlay) */}
       {showInstallPrompt && !hasDismissedInstall && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-md bg-emerald-600 rounded-2xl p-5 shadow-2xl flex flex-col sm:flex-row items-center gap-4 animate-in slide-in-from-bottom-10 duration-500 border border-emerald-500/30">
-          <div className="bg-white/20 p-3 rounded-xl">
-            <Download className="w-8 h-8 text-white" />
+        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-1rem)] max-w-sm bg-emerald-600 rounded-2xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-10 duration-500 border border-emerald-400/30 shadow-emerald-500/20">
+          <div className="bg-white/20 p-2.5 rounded-xl flex-shrink-0">
+            <Download className="w-6 h-6 text-white" />
           </div>
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="font-bold text-white text-lg leading-tight">Install MeshPaw</h3>
-            <p className="text-emerald-50 text-sm opacity-90">Install this web app for a better, off-grid experience.</p>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-white text-sm leading-tight truncate">Install MeshPaw</h3>
+            <p className="text-emerald-50 text-[10px] opacity-90 leading-tight">Get the full off-grid PWA experience.</p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <button 
               onClick={dismissInstall}
-              className="px-4 py-2 text-white/80 hover:text-white text-sm font-medium transition-colors"
+              className="px-2 py-2 text-white/80 hover:text-white text-[10px] font-bold uppercase tracking-tighter"
             >
               Later
             </button>
             <button 
               onClick={handleInstallClick}
-              className="flex-1 sm:flex-none px-6 py-2.5 bg-white text-emerald-700 font-bold rounded-xl shadow-lg hover:bg-emerald-50 active:scale-95 transition-all text-sm"
+              className="px-3 py-2 bg-white text-emerald-700 font-bold rounded-lg shadow-lg hover:bg-emerald-50 active:scale-95 transition-all text-[11px]"
             >
-              Install Now
+              Install
             </button>
           </div>
         </div>
@@ -975,31 +984,42 @@ export default function App() {
         ) : (
           <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-zinc-800">
-                <PawPrint className="w-8 h-8 opacity-50" />
+            <div className="h-full flex flex-col items-center justify-center p-8">
+              <div className="w-20 h-20 rounded-3xl bg-zinc-900 flex items-center justify-center border border-zinc-800 shadow-2xl mb-6 group hover:border-emerald-500/30 transition-all duration-500">
+                <PawPrint className="w-10 h-10 text-zinc-700 group-hover:text-emerald-500 transition-colors" />
               </div>
-              <div className="text-center max-w-xs">
-                <h3 className="text-zinc-300 font-medium mb-1">No messages yet</h3>
-                <p className="text-sm">Connect to a peer and start broadcasting to the local mesh.</p>
-                <div className="flex flex-col gap-2 mt-4 text-xs text-left">
-                  <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-emerald-400 flex items-start gap-2">
-                    <Wifi className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <div><strong>End-to-End Encrypted:</strong> Your keys stay in browser storage—never sent over the web.</div>
+              <div className="text-center max-w-sm mb-8">
+                <h3 className="text-white text-xl font-bold tracking-tight mb-2">No messages yet</h3>
+                <p className="text-zinc-500 text-sm leading-relaxed">Connect to a peer and start broadcasting to the local mesh network.</p>
+                
+                <div className="flex flex-col gap-3 mt-8">
+                  <div className="bg-emerald-500/5 transition-all p-4 rounded-2xl border border-emerald-500/10 text-emerald-100/90 flex items-start gap-4 text-left">
+                    <div className="bg-emerald-500/20 p-2 rounded-lg"><Wifi className="w-5 h-5 text-emerald-400" /></div>
+                    <div className="text-xs leading-relaxed">
+                      <strong className="text-emerald-400 block mb-0.5">End-to-End Encrypted</strong>
+                      Your keys stay in local storage—never sent over the mesh or web.
+                    </div>
                   </div>
-                  <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-500/90 flex items-start gap-2">
-                    <Radar className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <div><strong>Gossip Mesh:</strong> Messages hop through peers to reach targets outside your direct range.</div>
+                  <div className="bg-amber-500/5 transition-all p-4 rounded-2xl border border-amber-500/10 text-amber-100/90 flex items-start gap-4 text-left">
+                    <div className="bg-amber-500/20 p-2 rounded-lg"><Radar className="w-5 h-5 text-amber-400" /></div>
+                    <div className="text-xs leading-relaxed">
+                      <strong className="text-amber-400 block mb-0.5">Gossip Mesh</strong>
+                      Messages hop through peers to reach targets outside your direct range.
+                    </div>
                   </div>
-                  <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400 flex items-start gap-2">
-                    <WifiOff className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <div><strong>Zero Internet Native:</strong> Assets are cached for airplane-mode support. Scan QR via Local LAN.</div>
+                  <div className="bg-indigo-500/5 transition-all p-4 rounded-2xl border border-indigo-500/10 text-indigo-100/90 flex items-start gap-4 text-left">
+                    <div className="bg-indigo-500/20 p-2 rounded-lg"><WifiOff className="w-5 h-5 text-indigo-400" /></div>
+                    <div className="text-xs leading-relaxed">
+                      <strong className="text-indigo-400 block mb-0.5">Zero Internet Native</strong>
+                      Assets are cached for offline airplane-mode support. Works on Local LAN.
+                    </div>
                   </div>
                 </div>
               </div>
+              
               <button 
                 onClick={() => setShowConnectModal(true)}
-                className="mt-4 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-semibold rounded-lg transition-colors"
+                className="px-10 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black rounded-2xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-emerald-500/40 active:scale-95 uppercase tracking-widest text-xs"
               >
                 Add Peer
               </button>
