@@ -68,6 +68,19 @@ const generateAvatar = (id: string) => {
   return AVATARS[Math.abs(hash) % AVATARS.length];
 };
 
+const MeshLogo = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" className="opacity-20" />
+    <path d="M50 35C45.5817 35 42 38.5817 42 43C42 47.4183 45.5817 51 50 51C54.4183 51 58 47.4183 58 43C58 38.5817 54.4183 35 50 35Z" fill="currentColor" />
+    <path d="M30 50C25.5817 50 22 53.5817 22 58C22 62.4183 25.5817 66 30 66C34.4183 66 38 62.4183 38 58C38 54.4183 34.4183 50 30 50Z" fill="currentColor" />
+    <path d="M70 50C65.5817 50 62 53.5817 62 58C62 62.4183 65.5817 66 70 66C74.4183 66 78 62.4183 78 58C78 54.4183 74.4183 50 70 50Z" fill="currentColor" />
+    <path d="M50 65C40 65 30 72 30 80C30 84.4183 33.5817 88 38 88H62C66.4183 88 70 84.4183 70 80C70 72 60 65 50 65Z" fill="currentColor" />
+    <path d="M50 15L50 30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
+    <path d="M20 30L35 45" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
+    <path d="M80 30L65 45" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
+  </svg>
+);
+
 export default function App() {
   const [myId, setMyId] = useState<string>('');
   const [peer, setPeer] = useState<Peer | null>(null);
@@ -94,23 +107,19 @@ export default function App() {
   const [pendingPeerPrompt, setPendingPeerPrompt] = useState<string | null>(null);
   const [viewPeerInfo, setViewPeerInfo] = useState<string | null>(null);
   
-  // Custom Signaling (For Total Off-Grid Local LAN)
-  const [signalingHost, setSignalingHost] = useState<string>('0.peerjs.com');
-  const [showSignalingModal, setShowSignalingModal] = useState(false);
-  
   // Database State
   const [friends, setFriends] = useState<FriendNode[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Load Friends from DB
   useEffect(() => {
-    loadFriends().then(setFriends).catch(console.error);
+    loadFriends().then(setFriends);
   }, []);
 
-  const toggleFriend = async (peerId: string | null) => {
-    if (!peerId) return;
-    const existing = friends.find(f => f.id === peerId);
-    if (existing) {
+  const toggleFriend = async (peerId: string) => {
+    const isFriend = friends.find(f => f.id === peerId);
+    if (isFriend) {
       await removeFriend(peerId);
       setFriends(prev => prev.filter(f => f.id !== peerId));
     } else {
@@ -177,20 +186,11 @@ export default function App() {
   // Initialize Peer and Crypto Identity
   useEffect(() => {
     // 1. Identity Layer: Cryptographic Key Generation
+    const savedKeys = localStorage.getItem('meshpaw_keys');
     let keys: KeyPair;
-    try {
-      const savedKeys = localStorage.getItem('meshpaw_keys');
-      const savedSignaling = localStorage.getItem('meshpaw_signaling');
-      if (savedSignaling) setSignalingHost(savedSignaling);
-
-      if (savedKeys) {
-        keys = JSON.parse(savedKeys);
-      } else {
-        keys = generateKeys();
-        localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
-      }
-    } catch (e) {
-      console.error('Storage parsing failed, resetting identity');
+    if (savedKeys) {
+      keys = JSON.parse(savedKeys);
+    } else {
       keys = generateKeys();
       localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
     }
@@ -198,19 +198,11 @@ export default function App() {
 
     // Your Address is derived from your Public Key
     // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
-    const base64Safe = (keys.publicKey || '').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    if (!base64Safe && keys.publicKey) {
-      // Fallback in case replace fails but key is present
-      console.warn('Replacement failed, using raw public key string');
-    }
-    const peerId = base64Safe ? `mp-${base64Safe}-t` : `node-${Math.random().toString(36).substring(7)}`;
+    const base64Safe = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    const peerId = `mp-${base64Safe}-t`;
     
     setStatus('connecting');
     const newPeer = new Peer(peerId, {
-      host: signalingHost === '0.peerjs.com' ? undefined : signalingHost,
-      port: signalingHost === '0.peerjs.com' ? undefined : 9000,
-      path: '/',
-      secure: signalingHost === '0.peerjs.com',
       debug: 2
     });
 
@@ -559,28 +551,9 @@ export default function App() {
     msg.text.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const avgLatency = connections.size > 0 
-    ? Math.round(Array.from(peerStats.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + (stat?.latency || 0), 0) / Math.max(1, connections.size))
+  const avgLatency = connections.size > 0 && peerStats.size > 0
+    ? Math.round(Array.from(peerStats.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + (stat.latency || 0), 0) / connections.size)
     : 0;
-
-  if (!myId) {
-    return (
-      <div className="flex h-[100dvh] bg-zinc-950 items-center justify-center flex-col gap-6 font-sans">
-         <div className="w-24 h-24 bg-zinc-900 rounded-3xl flex items-center justify-center border border-zinc-800 shadow-2xl relative overflow-hidden">
-            <img src="/logo.png" alt="MeshNet" className="w-full h-full object-cover animate-pulse" />
-            <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 to-transparent"></div>
-         </div>
-         <div className="flex flex-col items-center gap-2">
-            <h1 className="text-xl font-black text-white tracking-[0.3em] uppercase italic">MeshNet</h1>
-            <div className="flex items-center gap-2">
-               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,1)]"></div>
-               <span className="text-[10px] font-mono text-emerald-500/60 uppercase tracking-widest animate-pulse">Initializing Cryptographic Vault...</span>
-            </div>
-         </div>
-         <div className="absolute bottom-10 text-[10px] text-zinc-600 font-mono tracking-widest opacity-50 uppercase">Verifying Local Node Identity</div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-[100dvh] bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
@@ -603,11 +576,11 @@ export default function App() {
         <div className="flex flex-col h-full bg-gradient-to-b from-zinc-950 to-zinc-900">
           <div className="p-6 border-b border-zinc-800/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-zinc-950 rounded-2xl flex items-center justify-center border border-zinc-800 shadow-xl overflow-hidden">
-                <img src="/logo.png" alt="MeshNet" className="w-full h-full object-cover animate-pulse-slow" />
+              <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/5">
+                <MeshLogo className="w-8 h-8 text-emerald-400 animate-pulse-slow" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">MeshNet</h1>
+                <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
                 <span className="text-[9px] font-mono text-emerald-500/80 mt-1 uppercase tracking-[0.2em]">Off-Grid Protocol v2.1</span>
               </div>
             </div>
@@ -833,13 +806,10 @@ export default function App() {
                   <span className="hidden sm:inline">Connecting...</span>
                 </div>
               ) : (
-                <button 
-                  onClick={() => setShowSignalingModal(true)}
-                  className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 active:scale-95 ${connections.size > 0 ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-500/20 shadow-lg shadow-emerald-500/5' : 'text-rose-400 bg-rose-400/10 border border-rose-500/20'}`}
-                >
+                <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium ${connections.size > 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-rose-400 bg-rose-400/10'}`}>
                   {connections.size > 0 ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-                  <span className="hidden sm:inline">{signalingHost === '0.peerjs.com' ? 'Public Mesh' : 'Private Mesh'}</span>
-                </button>
+                  <span className="hidden sm:inline">{connections.size > 0 ? 'Local Mesh' : 'Offline'}</span>
+                </div>
               )}
             </div>
           </div>
@@ -947,18 +917,14 @@ export default function App() {
                 <div className="absolute left-0 bottom-0 w-full h-[2px] bg-emerald-400 blur-[1px]"></div>
               </div>
 
-              <button 
-                onClick={() => setShowConnectModal(true)}
-                className="absolute z-20 flex flex-col items-center group transition-transform active:scale-95"
-              >
+              {/* Center You with Pulsing Effect */}
+              <div className="absolute z-20 flex flex-col items-center">
                 <div className="relative">
-                  <div className={`absolute -inset-6 bg-emerald-500/20 rounded-full animate-ping opacity-75 ${connections.size > 0 ? 'hidden' : ''}`}></div>
-                  <div className="w-12 h-12 rounded-full bg-zinc-900 border-2 border-emerald-500 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)] group-hover:bg-emerald-500 group-hover:text-zinc-950 transition-all">
-                    <Radar className="w-6 h-6 text-emerald-400 group-hover:text-zinc-950 animate-pulse" />
-                  </div>
+                  <div className="absolute -inset-4 bg-emerald-500/20 rounded-full animate-ping opacity-75"></div>
+                  <div className="w-5 h-5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.8)] border-2 border-zinc-900 relative z-10"></div>
                 </div>
-                <div className="bg-emerald-500 border border-emerald-400 px-3 py-1 rounded-full text-[10px] font-black text-zinc-950 mt-3 shadow-lg tracking-widest uppercase">Discovery</div>
-              </button>
+                <div className="bg-zinc-900/80 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-black text-white mt-3 border border-emerald-500/50 shadow-lg tracking-widest">YOU</div>
+              </div>
 
               {/* Peers */}
               {Array.from(connections.keys()).map((peerId: string, index: number) => {
@@ -1149,7 +1115,7 @@ export default function App() {
       </div>
 
       {/* Modals Overlay */}
-      {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo || showSignalingModal) && (
+      {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           
           {/* QR Modal */}
@@ -1167,67 +1133,20 @@ export default function App() {
                 <p className="text-zinc-400 text-sm mt-1">Scan to connect directly</p>
               </div>
               
-              <div className="bg-white p-4 rounded-xl flex justify-center mb-6 relative">
-                <QRCodeSVG value={myId} size={200} level="M" aria-hidden="true" title="" />
-                {/* Overlay to block browser long-press tooltips on mobile SVG titles */}
-                <div className="absolute inset-0 z-10"></div>
+              <div className="bg-white p-4 rounded-xl flex justify-center mb-6 relative min-h-[232px] items-center">
+                {myId ? (
+                  <>
+                    <QRCodeSVG value={myId} size={200} level="M" aria-hidden="true" title="" />
+                    <div className="absolute inset-0 z-10"></div>
+                  </>
+                ) : (
+                  <div className="text-zinc-400 font-mono text-xs animate-pulse">Initializing Crypto Node...</div>
+                )}
               </div>
               
               <div className="bg-zinc-950 rounded-lg p-3 border border-zinc-800 text-center">
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Crypto Address</div>
                 <div className="font-mono text-xs font-bold text-emerald-400 break-all">{myId}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Local Signaling Host Config (Off-Grid Pro) */}
-          {showSignalingModal && (
-            <div className="bg-zinc-900 border border-emerald-500/50 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in slide-in-from-bottom-5 duration-300">
-              <button 
-                onClick={() => setShowSignalingModal(false)}
-                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-full"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <div className="mb-6">
-                <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/30 mb-4 shadow-lg">
-                   <WifiOff className="w-6 h-6 text-emerald-400" />
-                </div>
-                <h2 className="text-xl font-bold text-white mb-2 tracking-tight">Mesh Signaling</h2>
-                <p className="text-zinc-400 text-sm leading-relaxed">
-                  In a total internet blackout, enter the local IP of your Mesh Gateway (e.g. your PC or router) to find peers over Wi-Fi.
-                </p>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-1">Discovery Host</label>
-                   <input 
-                     type="text" 
-                     value={signalingHost} 
-                     onChange={(e) => setSignalingHost(e.target.value)}
-                     placeholder="e.g. 192.168.1.50"
-                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-emerald-500 focus:outline-none transition-all shadow-inner"
-                   />
-                </div>
-                <button 
-                  onClick={() => {
-                    localStorage.setItem('meshpaw_signaling', signalingHost);
-                    window.location.reload();
-                  }}
-                  className="w-full py-4 bg-emerald-500 text-zinc-950 font-black rounded-xl hover:bg-emerald-400 active:scale-[0.98] transition-all shadow-lg shadow-emerald-500/10 uppercase tracking-wider"
-                >
-                  Re-Init Protocol
-                </button>
-                <button 
-                  onClick={() => {
-                    setSignalingHost('0.peerjs.com');
-                    localStorage.setItem('meshpaw_signaling', '0.peerjs.com');
-                    window.location.reload();
-                  }}
-                  className="w-full py-2 text-zinc-500 hover:text-emerald-400 text-[10px] font-bold uppercase underline tracking-widest"
-                >
-                  Reset to Global Cloud
-                </button>
               </div>
             </div>
           )}
@@ -1284,12 +1203,39 @@ export default function App() {
                   />
                 </div>
                 
+                  
+                  <div className="relative flex items-center mb-6">
+                    <div className="flex-1 h-px bg-zinc-800"></div>
+                    <span className="px-3 text-[10px] text-zinc-600 uppercase font-black tracking-widest">OR USE OFFLINE PIN</span>
+                    <div className="flex-1 h-px bg-zinc-800"></div>
+                  </div>
+
+                  <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 mb-6">
+                    <p className="text-[10px] text-amber-500 font-bold uppercase mb-2 tracking-wider">Discovery Hub (No Scan Required)</p>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        placeholder="4-digit Mesh PIN"
+                        maxLength={4}
+                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono text-center tracking-[0.5em] focus:border-amber-500 outline-none transition-colors"
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase();
+                          if (val.length === 4 && peer) {
+                             // This is a "well-known" discovery ID for a local group
+                             setConnectId(`mp-mesh-HUB-${val}`);
+                          }
+                        }}
+                      />
+                    </div>
+                    <p className="text-[9px] text-zinc-600 mt-2">Enter the same 4-digit code as your partner to automatically link up on the same local mesh.</p>
+                  </div>
+
                 <button
                   type="submit"
-                  disabled={!connectId.trim() || connectId.length < 20}
+                  disabled={!connectId.trim() || connectId.length < 4}
                   className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-bold rounded-lg transition-colors"
                 >
-                  Connect
+                  Connect to Node
                 </button>
               </form>
             </div>
@@ -1321,7 +1267,9 @@ export default function App() {
               <div className="flex flex-col gap-3">
                 <button
                   onClick={async () => {
-                    await toggleFriend(pendingPeerPrompt);
+                    if (pendingPeerPrompt) {
+                      await toggleFriend(pendingPeerPrompt);
+                    }
                     setPendingPeerPrompt(null);
                   }}
                   className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
@@ -1367,7 +1315,7 @@ export default function App() {
                 
                 <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 mb-6 font-mono text-center">
                    <div className="text-[10px] uppercase text-zinc-500 tracking-widest mb-2">Cryptographic Hash ID</div>
-                   <div className="text-xs text- emerald-300 break-all">{viewPeerInfo}</div>
+                   <div className="text-xs text-emerald-300 break-all">{viewPeerInfo}</div>
                 </div>
                 
                 <div className="flex flex-col gap-3">
@@ -1400,7 +1348,9 @@ export default function App() {
                    
                    <button
                      onClick={async () => {
-                        await toggleFriend(viewPeerInfo);
+                        if (viewPeerInfo) {
+                          await toggleFriend(viewPeerInfo);
+                        }
                      }}
                      className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
                    >
