@@ -45,6 +45,7 @@ interface PeerStat {
 
 const ADJECTIVES = ['Sugary', 'Spicy', 'Crispy', 'Crunchy', 'Salty', 'Sweet', 'Sour', 'Toasted', 'Glazed', 'Fried', 'Cheesy', 'Melted', 'Jolly', 'Sizzling', 'Buttery', 'Frosted', 'Sticky', 'Gooey', 'Bubbly', 'Zesty'];
 const NOUNS = ['Bites', 'Tacos', 'Pickles', 'Donuts', 'Bacon', 'Noodles', 'Waffles', 'Burgers', 'Pancakes', 'Burritos', 'Sushi', 'Muffins', 'Biscuits', 'Cookies', 'Pretzels', 'Cupcakes', 'Fries', 'Snacks', 'Nuggets', 'Pizzas'];
+const AVATARS = ['🐶', '😸', '🐼', '🦊', '🐷', '🐸', '🦄', '👾', '👻', '🍕'];
 
 const generateFoodName = (id: string) => {
   if (!id) return 'Unknown Food';
@@ -56,6 +57,15 @@ const generateFoodName = (id: string) => {
   const nounIndex = Math.abs(hash * 3) % NOUNS.length;
   
   return `${ADJECTIVES[adjIndex]} ${NOUNS[nounIndex]}`;
+};
+
+const generateAvatar = (id: string) => {
+  if (!id) return '👽';
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATARS[Math.abs(hash) % AVATARS.length];
 };
 
 export default function App() {
@@ -534,9 +544,14 @@ export default function App() {
           <div className="p-4 border-b border-zinc-800">
             <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">My Node</div>
             <div className="flex items-center justify-between bg-zinc-950 rounded-lg p-3 border border-zinc-800">
-              <div className="flex flex-col">
-                <span className="font-bold text-lg text-emerald-400 leading-tight">{myId ? generateFoodName(myId) : '------'}</span>
-                <span className="font-mono text-[10px] text-zinc-500 uppercase mt-0.5">My Local Node</span>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center text-xl shadow-inner border border-zinc-800">
+                  {myId ? generateAvatar(myId) : '⏳'}
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-lg text-emerald-400 leading-tight">{myId ? generateFoodName(myId) : '------'}</span>
+                  <span className="font-mono text-[10px] text-zinc-500 uppercase mt-0.5">My Local Node</span>
+                </div>
               </div>
               <button 
                 onClick={() => setShowQrModal(true)}
@@ -577,8 +592,13 @@ export default function App() {
                   return (
                     <li key={peerId} className={`flex flex-col p-3 rounded-lg border transition-all ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-800/50 border-zinc-800/50'}`}>
                       <div className="flex items-start justify-between mb-1">
-                        <div className="flex items-start gap-2 max-w-[70%]">
-                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 border-2 border-zinc-900 ${isStale ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse-slow'}`}></div>
+                        <div className="flex items-start gap-3 max-w-[70%]">
+                          <div className="relative">
+                            <div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center text-sm shadow-inner border border-zinc-700">
+                              {generateAvatar(peerId)}
+                            </div>
+                            <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-zinc-900 ${isStale ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse-slow'}`}></div>
+                          </div>
                           <div className="flex flex-col overflow-hidden">
                             <span className={`font-medium text-sm leading-tight truncate ${isFriend ? 'text-amber-400 font-bold' : 'text-emerald-100'}`}>
                               {getDisplayName(peerId)}
@@ -861,7 +881,10 @@ export default function App() {
                   <div key={msg.id} className={`flex flex-col ${msg.isMine ? 'items-end' : 'items-start'}`}>
                     {showSender && !msg.isMine && (
                       <div className="mb-1 ml-1 flex items-baseline gap-1.5">
-                        <span className="text-xs font-bold text-emerald-300">{getDisplayName(msg.senderId)}</span>
+                    <span className="text-xs font-bold text-emerald-300 gap-1 flex items-baseline">
+                          <span className="text-[10px]">{generateAvatar(msg.senderId)}</span>
+                          {getDisplayName(msg.senderId)}
+                        </span>
                         <span className="text-[10px] font-mono text-zinc-600">#{msg.senderId.substring(0, 10)}</span>
                       </div>
                     )}
@@ -1062,9 +1085,12 @@ export default function App() {
                 <p className="text-zinc-400 text-sm">
                   Would you like to save this device permanently to your Address Book?
                 </p>
-                <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 mt-4 overflow-hidden">
+                <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 mt-4 overflow-hidden flex flex-col items-center">
+                  <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center text-3xl shadow-inner border border-zinc-700 mb-3">
+                    {generateAvatar(pendingPeerPrompt)}
+                  </div>
                   <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Crypto ID</div>
-                  <div className="font-mono text-xs text-emerald-400 truncate">{pendingPeerPrompt}</div>
+                  <div className="font-mono text-xs text-emerald-400 truncate w-full text-center">{pendingPeerPrompt}</div>
                   <div className="text-sm font-bold text-emerald-100 mt-2">
                     {generateFoodName(pendingPeerPrompt)}
                   </div>
