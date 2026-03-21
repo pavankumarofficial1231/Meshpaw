@@ -200,14 +200,18 @@ export default function App() {
     // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
     const base64Safe = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     const peerId = `mp-${base64Safe}-t`;
+
+    // ✅ Set myId IMMEDIATELY from the local crypto key — don't wait for PeerJS.
+    // This ensures the QR code renders right away, even fully offline.
+    setMyId(peerId);
     
     setStatus('connecting');
     const newPeer = new Peer(peerId, {
       debug: 2
     });
 
-    newPeer.on('open', (id) => {
-      setMyId(id);
+    newPeer.on('open', (_id) => {
+      // ID confirmed by server — already set locally, just update status
       setStatus('connected');
     });
 
