@@ -813,9 +813,14 @@ export default function App() {
               {Array.from(connections.keys()).map((peerId: string, index: number) => {
                 const isFriend = friends.some(f => f.id === peerId);
                 const angle = (index * (360 / Math.max(1, connections.size))) * (Math.PI / 180);
-                const distance = 30 + (Math.abs(peerId.charCodeAt(0) % 50)); // Pseudo-random 30-80% distance
-                const x = `calc(50% + ${Math.cos(angle) * distance}%)`;
-                const y = `calc(50% + ${Math.sin(angle) * distance}%)`;
+                
+                // Keep bounding radius between 10% and 42% so it stays perfectly inside the radar dial!
+                const distance = 10 + (Math.abs(peerId.charCodeAt(0) % 32)); 
+                
+                const xVal = 50 + (Math.cos(angle) * distance);
+                const yVal = 50 + (Math.sin(angle) * distance);
+                const x = `${xVal}%`;
+                const y = `${yVal}%`;
                 
                 return (
                   <div key={peerId} className="absolute z-10 flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2 transition-all duration-1000" style={{ left: x, top: y }}>
