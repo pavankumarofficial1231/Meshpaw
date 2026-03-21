@@ -70,14 +70,29 @@ const generateAvatar = (id: string) => {
 
 const MeshLogo = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="50" r="48" stroke="currentColor" strokeWidth="2" strokeDasharray="4 4" className="opacity-20" />
-    <path d="M50 35C45.5817 35 42 38.5817 42 43C42 47.4183 45.5817 51 50 51C54.4183 51 58 47.4183 58 43C58 38.5817 54.4183 35 50 35Z" fill="currentColor" />
-    <path d="M30 50C25.5817 50 22 53.5817 22 58C22 62.4183 25.5817 66 30 66C34.4183 66 38 62.4183 38 58C38 54.4183 34.4183 50 30 50Z" fill="currentColor" />
-    <path d="M70 50C65.5817 50 62 53.5817 62 58C62 62.4183 65.5817 66 70 66C74.4183 66 78 62.4183 78 58C78 54.4183 74.4183 50 70 50Z" fill="currentColor" />
-    <path d="M50 65C40 65 30 72 30 80C30 84.4183 33.5817 88 38 88H62C66.4183 88 70 84.4183 70 80C70 72 60 65 50 65Z" fill="currentColor" />
-    <path d="M50 15L50 30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
-    <path d="M20 30L35 45" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
-    <path d="M80 30L65 45" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2" />
+    {/* Outer Glow Ring */}
+    <circle cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 4" className="opacity-30" />
+    
+    {/* Interconnected Mesh Lattice nodes */}
+    <path d="M50 30L35 45L50 60L65 45L50 30Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+    <path d="M35 45L25 60L40 70L50 60L35 45Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+    <path d="M65 45L75 60L60 70L50 60L65 45Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+    <path d="M40 70L50 85L60 70L40 70Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+    
+    {/* Central Core Nodes */}
+    <circle cx="50" cy="30" r="2.5" fill="currentColor" />
+    <circle cx="35" cy="45" r="2.5" fill="currentColor" />
+    <circle cx="65" cy="45" r="2.5" fill="currentColor" />
+    <circle cx="50" cy="60" r="3.5" fill="currentColor" className="animate-pulse" />
+    <circle cx="25" cy="60" r="2.5" fill="currentColor" />
+    <circle cx="75" cy="60" r="2.5" fill="currentColor" />
+    <circle cx="40" cy="70" r="2.5" fill="currentColor" />
+    <circle cx="60" cy="70" r="2.5" fill="currentColor" />
+    <circle cx="50" cy="85" r="2.5" fill="currentColor" />
+    
+    {/* Inner Connectivity Lines */}
+    <line x1="50" y1="30" x2="50" y2="60" stroke="currentColor" strokeWidth="0.5" strokeDasharray="1 1" />
+    <line x1="25" y1="60" x2="75" y2="60" stroke="currentColor" strokeWidth="0.5" strokeDasharray="1 1" />
   </svg>
 );
 
