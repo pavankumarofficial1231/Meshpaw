@@ -14,8 +14,8 @@ export default defineConfig(({mode}) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
-          name: 'MeshPaw: Off-Grid Mesh',
-          short_name: 'MeshPaw',
+          name: 'MeshNet: Off-Grid P2P',
+          short_name: 'MeshNet',
           description: 'Secure, peer-to-peer mesh communication without internet.',
           theme_color: '#09090b',
           background_color: '#09090b',

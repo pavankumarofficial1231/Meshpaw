@@ -581,10 +581,10 @@ export default function App() {
           <div className="p-6 border-b border-zinc-800/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-zinc-950 rounded-2xl flex items-center justify-center border border-zinc-800 shadow-xl overflow-hidden">
-                <img src="/logo.png" alt="MeshPaw" className="w-full h-full object-cover animate-pulse-slow" />
+                <img src="/logo.png" alt="MeshNet" className="w-full h-full object-cover animate-pulse-slow" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
+                <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">MeshNet</h1>
                 <span className="text-[9px] font-mono text-emerald-500/80 mt-1 uppercase tracking-[0.2em]">Off-Grid Protocol v2.1</span>
               </div>
             </div>
@@ -815,7 +815,7 @@ export default function App() {
                   className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 active:scale-95 ${connections.size > 0 ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-500/20 shadow-lg shadow-emerald-500/5' : 'text-rose-400 bg-rose-400/10 border border-rose-500/20'}`}
                 >
                   {connections.size > 0 ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-                  <span className="hidden sm:inline">{signalingHost === '0.peerjs.com' ? 'Global Mesh' : 'Local Mesh'}</span>
+                  <span className="hidden sm:inline">{signalingHost === '0.peerjs.com' ? 'Public Mesh' : 'Private Mesh'}</span>
                 </button>
               )}
             </div>
