@@ -583,7 +583,7 @@ export default function App() {
       {/* Sidebar (Desktop) / Drawer (Mobile) */}
       <div className={`
         fixed inset-y-0 left-0 z-40 w-[85vw] max-w-[320px] md:w-80 bg-zinc-950 border-r border-zinc-800/50 transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
-        md:relative md:translate-x-0 flex-shrink-0
+        md:static md:translate-x-0 flex-shrink-0
         ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         <div className="flex flex-col h-full bg-gradient-to-b from-zinc-950 to-zinc-900 overflow-hidden">
@@ -594,7 +594,7 @@ export default function App() {
               </div>
               <div className="flex flex-col">
                 <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
-                <span className="text-[9px] font-mono text-emerald-500/80 mt-1 uppercase tracking-[0.2em]">Off-Grid Protocol v2.1</span>
+                <span className="text-[9px] font-mono text-emerald-500/80 mt-1 uppercase tracking-[0.2em]">Off-Grid Protocol v2.2</span>
               </div>
             </div>
             <button className="md:hidden p-2 text-zinc-500 hover:text-white bg-zinc-900 border border-zinc-800 rounded-lg" onClick={() => setShowSidebar(false)}>
