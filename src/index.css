@@ -1,1 +1,53 @@
 @import "tailwindcss";
+
+/* ============================================================
+   GUARANTEED LAYOUT — uses native CSS media queries.
+   This bypasses Tailwind class purging entirely so the layout
+   CANNOT break on hard refresh or builds.
+============================================================ */
+
+/* Root app container */
+#root {
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Desktop Sidebar — hidden on mobile, flex column on desktop */
+.desktop-sidebar {
+  display: none;
+  flex-direction: column;
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid rgba(39, 39, 42, 0.6);
+  background: #09090b;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .desktop-sidebar {
+    display: flex;
+  }
+}
+
+/* Main content — takes all remaining space */
+.main-content {
+  flex: 1 1 0%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Slow pulse animation */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}

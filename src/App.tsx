@@ -569,7 +569,7 @@ export default function App() {
     : 0;
 
   return (
-    <div className="flex h-[100dvh] bg-zinc-950 text-zinc-100 overflow-hidden">
+    <div style={{display:'flex', height:'100dvh', overflow:'hidden', background:'#09090b', color:'#f4f4f5'}}>
       
       {/* ── MOBILE OVERLAY BACKDROP ── */}
       {showSidebar && (
@@ -580,8 +580,8 @@ export default function App() {
         />
       )}
 
-      {/* ── DESKTOP SIDEBAR (always in CSS flow, never fixed, no JS layout) ── */}
-      <aside className="hidden md:flex md:w-80 md:flex-shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950 h-full overflow-hidden">
+      {/* ── DESKTOP SIDEBAR ── */}
+      <aside className="desktop-sidebar">
         {/* Brand */}
         <div className="p-5 border-b border-zinc-800/50 flex items-center gap-3">
           <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/30 flex-shrink-0">
@@ -795,7 +795,7 @@ export default function App() {
       )}
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-zinc-950 relative">
+      <div className="main-content flex flex-col bg-zinc-950 relative">
         
         {/* Header */}
         <header className="h-16 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-10">
