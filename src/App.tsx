@@ -543,7 +543,7 @@ export default function App() {
     : 0;
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
+    <div className="flex h-[100dvh] bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
       
       {/* Mobile Sidebar Overlay */}
       {showSidebar && (
@@ -871,28 +871,36 @@ export default function App() {
         {/* Radar View */}
         {showRadar ? (
           <div className="flex-1 overflow-hidden relative flex flex-col items-center justify-center p-6 bg-zinc-950">
-            <div className="text-center z-10 mb-8 absolute top-8">
+            <div className="text-center z-10 mb-8 absolute top-8 w-full px-4">
               <h2 className="text-2xl font-bold text-emerald-400 tracking-wider uppercase mb-2">Local Mesh Radar</h2>
-              <p className="text-zinc-400 max-w-md mx-auto text-sm">Visualizing active P2P connections over local network/QR limits. Operates independently of the global Internet.</p>
+              <p className="text-zinc-400 max-w-md mx-auto text-sm">Visualizing active P2P connections. Operates independently of the global Internet once connected.</p>
+              {connections.size === 0 && (
+                <div className="mt-4 bg-amber-500/10 border border-amber-500/20 text-amber-400/90 text-xs px-4 py-2 rounded-lg max-w-xs mx-auto animate-pulse">
+                  ⚠️ Scan a QR Code to detect a nearby device and jumpstart the mesh!
+                </div>
+              )}
             </div>
             
-            <div className="relative w-72 h-72 sm:w-96 sm:h-96 md:w-[500px] md:h-[500px] rounded-full border border-emerald-500/20 bg-emerald-950/20 shadow-[0_0_100px_rgba(16,185,129,0.1)] flex items-center justify-center overflow-hidden">
+            <div className="relative w-72 h-72 sm:w-96 sm:h-96 md:w-[500px] md:h-[500px] rounded-full border border-emerald-500/20 bg-emerald-950/20 shadow-[0_0_100px_rgba(16,185,129,0.15)] flex items-center justify-center overflow-hidden mt-12 sm:mt-0">
               {/* Radar Circles */}
-              <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-75"></div>
+              <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-75 animate-pulse-slow"></div>
               <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-50"></div>
               <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-25"></div>
               <div className="absolute w-full h-[1px] bg-emerald-500/10"></div>
               <div className="absolute h-full w-[1px] bg-emerald-500/10"></div>
               
               {/* Sweeping Scanner */}
-              <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 bg-gradient-to-br from-emerald-500/30 to-transparent origin-top-left animate-[spin_4s_linear_infinite] rounded-tr-full shadow-[0_0_20px_rgba(16,185,129,0.5)]">
+              <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 bg-gradient-to-br from-emerald-500/30 to-transparent origin-top-left animate-[spin_4s_linear_infinite] rounded-tr-full shadow-[0_0_20px_rgba(16,185,129,0.5)] z-0">
                 <div className="absolute left-0 bottom-0 w-full h-[2px] bg-emerald-400 blur-[1px]"></div>
               </div>
 
-              {/* Center You */}
+              {/* Center You with Pulsing Effect */}
               <div className="absolute z-20 flex flex-col items-center">
-                <div className="w-4 h-4 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.8)] border-2 border-zinc-900"></div>
-                <div className="bg-zinc-900/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-white mt-2 border border-emerald-500/30">YOU</div>
+                <div className="relative">
+                  <div className="absolute -inset-4 bg-emerald-500/20 rounded-full animate-ping opacity-75"></div>
+                  <div className="w-5 h-5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.8)] border-2 border-zinc-900 relative z-10"></div>
+                </div>
+                <div className="bg-zinc-900/80 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-black text-white mt-3 border border-emerald-500/50 shadow-lg tracking-widest">YOU</div>
               </div>
 
               {/* Peers */}
@@ -938,7 +946,7 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-zinc-800">
@@ -1051,9 +1059,9 @@ export default function App() {
 
         {/* Input Area */}
         {!showRadar && (
-        <div className="p-4 bg-zinc-950 border-t border-zinc-800">
+        <div className="p-3 sm:p-4 bg-zinc-950 border-t border-zinc-800/50">
           <form onSubmit={sendMessage} className="max-w-3xl mx-auto relative flex items-end gap-2">
-            <div className="relative flex-1 bg-zinc-900 rounded-xl border border-zinc-800 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/50 transition-all">
+            <div className="relative flex-1 bg-zinc-900/80 backdrop-blur-sm rounded-xl border border-zinc-800 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/50 transition-all">
               <textarea
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
@@ -1063,15 +1071,15 @@ export default function App() {
                     sendMessage(e);
                   }
                 }}
-                placeholder={connections.size > 0 ? "Broadcast to mesh..." : "Offline mode: Messages will queue up..."}
-                className="w-full bg-transparent text-zinc-100 placeholder-zinc-500 p-3 sm:p-4 max-h-32 min-h-[52px] resize-none focus:outline-none disabled:opacity-50"
+                placeholder={connections.size > 0 ? "Broadcast message..." : "Disconnected. Messages will queue."}
+                className="w-full bg-transparent text-zinc-100 placeholder-zinc-500 p-3 sm:p-4 max-h-32 min-h-[48px] resize-none focus:outline-none disabled:opacity-50 text-[15px]"
                 rows={1}
               />
             </div>
             <button
               type="submit"
               disabled={!inputMessage.trim()}
-                  className="p-3 sm:p-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 rounded-xl transition-colors flex-shrink-0"
+                  className="p-3 sm:p-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 rounded-xl transition-all active:scale-95 flex-shrink-0 shadow-lg shadow-emerald-500/10"
             >
               <Send className="w-5 h-5" />
             </button>
