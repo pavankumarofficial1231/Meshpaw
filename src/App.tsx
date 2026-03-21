@@ -103,14 +103,14 @@ export default function App() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load Friends from DB
   useEffect(() => {
-    loadFriends().then(setFriends);
+    loadFriends().then(setFriends).catch(console.error);
   }, []);
 
-  const toggleFriend = async (peerId: string) => {
-    const isFriend = friends.find(f => f.id === peerId);
-    if (isFriend) {
+  const toggleFriend = async (peerId: string | null) => {
+    if (!peerId) return;
+    const existing = friends.find(f => f.id === peerId);
+    if (existing) {
       await removeFriend(peerId);
       setFriends(prev => prev.filter(f => f.id !== peerId));
     } else {
