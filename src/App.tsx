@@ -545,9 +545,18 @@ export default function App() {
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
       
+      {/* Mobile Sidebar Overlay */}
+      {showSidebar && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden"
+          onClick={() => setShowSidebar(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar (Desktop) / Drawer (Mobile) */}
       <div className={`
-        fixed inset-y-0 left-0 z-40 w-72 bg-zinc-900 border-r border-zinc-800 transform transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-40 w-[85vw] max-w-[320px] md:w-80 bg-zinc-950 border-r border-zinc-800/50 transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
         md:relative md:translate-x-0
         ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
       `}>
@@ -562,24 +571,24 @@ export default function App() {
             </button>
           </div>
           
-          <div className="p-4 border-b border-zinc-800">
-            <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">My Node</div>
-            <div className="flex items-center justify-between bg-zinc-950 rounded-lg p-3 border border-zinc-800">
+          <div className="p-5 border-b border-zinc-800/50">
+            <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">My Node Identity</div>
+            <div className="flex items-center justify-between bg-zinc-900/60 rounded-xl p-3.5 border border-zinc-800/50 shadow-inner">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center text-xl shadow-inner border border-zinc-800">
+                <div className="w-12 h-12 bg-zinc-950 rounded-full flex items-center justify-center text-2xl shadow-sm border border-zinc-800">
                   {myId ? generateAvatar(myId) : '⏳'}
                 </div>
                 <div className="flex flex-col">
                   <span className="font-bold text-lg text-emerald-400 leading-tight">{myId ? generateFoodName(myId) : '------'}</span>
-                  <span className="font-mono text-[10px] text-zinc-500 uppercase mt-0.5">My Local Node</span>
+                  <span className="font-mono text-[10px] text-zinc-500 uppercase mt-1 tracking-wider">Local Broadcaster</span>
                 </div>
               </div>
               <button 
                 onClick={() => setShowQrModal(true)}
-                className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors"
+                className="p-2.5 bg-zinc-800 hover:bg-zinc-700 active:scale-95 rounded-lg transition-all shadow-sm"
                 title="Show QR Code"
               >
-                <QrCode className="w-4 h-4 text-zinc-300" />
+                <QrCode className="w-5 h-5 text-emerald-400" />
               </button>
             </div>
           </div>
