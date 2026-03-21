@@ -107,6 +107,10 @@ export default function App() {
   const [pendingPeerPrompt, setPendingPeerPrompt] = useState<string | null>(null);
   const [viewPeerInfo, setViewPeerInfo] = useState<string | null>(null);
   
+  // Custom Signaling (For Total Off-Grid Local LAN)
+  const [signalingHost, setSignalingHost] = useState<string>('0.peerjs.com');
+  const [showSignalingModal, setShowSignalingModal] = useState(false);
+  
   // Database State
   const [friends, setFriends] = useState<FriendNode[]>([]);
   
@@ -187,6 +191,9 @@ export default function App() {
   useEffect(() => {
     // 1. Identity Layer: Cryptographic Key Generation
     const savedKeys = localStorage.getItem('meshpaw_keys');
+    const savedSignaling = localStorage.getItem('meshpaw_signaling');
+    if (savedSignaling) setSignalingHost(savedSignaling);
+
     let keys: KeyPair;
     if (savedKeys) {
       keys = JSON.parse(savedKeys);
@@ -203,6 +210,10 @@ export default function App() {
     
     setStatus('connecting');
     const newPeer = new Peer(peerId, {
+      host: signalingHost === '0.peerjs.com' ? undefined : signalingHost,
+      port: signalingHost === '0.peerjs.com' ? undefined : 9000,
+      path: '/',
+      secure: signalingHost === '0.peerjs.com',
       debug: 2
     });
 
@@ -806,10 +817,13 @@ export default function App() {
                   <span className="hidden sm:inline">Connecting...</span>
                 </div>
               ) : (
-                <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium ${connections.size > 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-rose-400 bg-rose-400/10'}`}>
+                <button 
+                  onClick={() => setShowSignalingModal(true)}
+                  className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-all hover:scale-105 active:scale-95 ${connections.size > 0 ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-500/20 shadow-lg shadow-emerald-500/5' : 'text-rose-400 bg-rose-400/10 border border-rose-500/20'}`}
+                >
                   {connections.size > 0 ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-                  <span className="hidden sm:inline">{connections.size > 0 ? 'Local Mesh' : 'Offline'}</span>
-                </div>
+                  <span className="hidden sm:inline">{signalingHost === '0.peerjs.com' ? 'Global Mesh' : 'Local Mesh'}</span>
+                </button>
               )}
             </div>
           </div>
@@ -917,14 +931,18 @@ export default function App() {
                 <div className="absolute left-0 bottom-0 w-full h-[2px] bg-emerald-400 blur-[1px]"></div>
               </div>
 
-              {/* Center You with Pulsing Effect */}
-              <div className="absolute z-20 flex flex-col items-center">
+              <button 
+                onClick={() => setShowConnectModal(true)}
+                className="absolute z-20 flex flex-col items-center group transition-transform active:scale-95"
+              >
                 <div className="relative">
-                  <div className="absolute -inset-4 bg-emerald-500/20 rounded-full animate-ping opacity-75"></div>
-                  <div className="w-5 h-5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.8)] border-2 border-zinc-900 relative z-10"></div>
+                  <div className={`absolute -inset-6 bg-emerald-500/20 rounded-full animate-ping opacity-75 ${connections.size > 0 ? 'hidden' : ''}`}></div>
+                  <div className="w-12 h-12 rounded-full bg-zinc-900 border-2 border-emerald-500 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.5)] group-hover:bg-emerald-500 group-hover:text-zinc-950 transition-all">
+                    <Radar className="w-6 h-6 text-emerald-400 group-hover:text-zinc-950 animate-pulse" />
+                  </div>
                 </div>
-                <div className="bg-zinc-900/80 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-black text-white mt-3 border border-emerald-500/50 shadow-lg tracking-widest">YOU</div>
-              </div>
+                <div className="bg-emerald-500 border border-emerald-400 px-3 py-1 rounded-full text-[10px] font-black text-zinc-950 mt-3 shadow-lg tracking-widest uppercase">Discovery</div>
+              </button>
 
               {/* Peers */}
               {Array.from(connections.keys()).map((peerId: string, index: number) => {
@@ -1115,7 +1133,7 @@ export default function App() {
       </div>
 
       {/* Modals Overlay */}
-      {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo) && (
+      {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo || showSignalingModal) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           
           {/* QR Modal */}
@@ -1142,6 +1160,58 @@ export default function App() {
               <div className="bg-zinc-950 rounded-lg p-3 border border-zinc-800 text-center">
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Crypto Address</div>
                 <div className="font-mono text-xs font-bold text-emerald-400 break-all">{myId}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Local Signaling Host Config (Off-Grid Pro) */}
+          {showSignalingModal && (
+            <div className="bg-zinc-900 border border-emerald-500/50 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in slide-in-from-bottom-5 duration-300">
+              <button 
+                onClick={() => setShowSignalingModal(false)}
+                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-full"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="mb-6">
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/30 mb-4 shadow-lg">
+                   <WifiOff className="w-6 h-6 text-emerald-400" />
+                </div>
+                <h2 className="text-xl font-bold text-white mb-2 tracking-tight">Mesh Signaling</h2>
+                <p className="text-zinc-400 text-sm leading-relaxed">
+                  In a total internet blackout, enter the local IP of your Mesh Gateway (e.g. your PC or router) to find peers over Wi-Fi.
+                </p>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest pl-1">Discovery Host</label>
+                   <input 
+                     type="text" 
+                     value={signalingHost} 
+                     onChange={(e) => setSignalingHost(e.target.value)}
+                     placeholder="e.g. 192.168.1.50"
+                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-emerald-500 focus:outline-none transition-all shadow-inner"
+                   />
+                </div>
+                <button 
+                  onClick={() => {
+                    localStorage.setItem('meshpaw_signaling', signalingHost);
+                    window.location.reload();
+                  }}
+                  className="w-full py-4 bg-emerald-500 text-zinc-950 font-black rounded-xl hover:bg-emerald-400 active:scale-[0.98] transition-all shadow-lg shadow-emerald-500/10 uppercase tracking-wider"
+                >
+                  Re-Init Protocol
+                </button>
+                <button 
+                  onClick={() => {
+                    setSignalingHost('0.peerjs.com');
+                    localStorage.setItem('meshpaw_signaling', '0.peerjs.com');
+                    window.location.reload();
+                  }}
+                  className="w-full py-2 text-zinc-500 hover:text-emerald-400 text-[10px] font-bold uppercase underline tracking-widest"
+                >
+                  Reset to Global Cloud
+                </button>
               </div>
             </div>
           )}
