@@ -574,10 +574,10 @@ export default function App() {
       {/* Sidebar (Desktop) / Drawer (Mobile) */}
       <div className={`
         fixed inset-y-0 left-0 z-40 w-[85vw] max-w-[320px] md:w-80 bg-zinc-950 border-r border-zinc-800/50 transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none
-        md:relative md:translate-x-0
-        ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
+        md:relative md:translate-x-0 flex-shrink-0
+        ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="flex flex-col h-full bg-gradient-to-b from-zinc-950 to-zinc-900">
+        <div className="flex flex-col h-full bg-gradient-to-b from-zinc-950 to-zinc-900 overflow-hidden">
           <div className="p-6 border-b border-zinc-800/50 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/30 shadow-lg shadow-emerald-500/5">
@@ -1120,7 +1120,8 @@ export default function App() {
 
       {/* Modals Overlay */}
       {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
+          <div className="flex items-center justify-center min-h-full w-full py-8">
           
           {/* QR Modal */}
           {showQrModal && (
@@ -1157,22 +1158,22 @@ export default function App() {
 
           {/* Connect Modal */}
           {showConnectModal && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
               <button 
                 onClick={() => setShowConnectModal(false)}
-                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-full"
+                className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white bg-zinc-800 rounded-full z-10"
               >
                 <X className="w-4 h-4" />
               </button>
               
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-white">Add Peer</h2>
-                  <p className="text-zinc-400 text-sm mt-1">Enter a node ID to establish connection</p>
+              <div className="mb-6 flex items-center justify-between relative z-10">
+                <div className="pr-8">
+                  <h2 className="text-xl font-bold text-white tracking-tight">Add Peer</h2>
+                  <p className="text-zinc-500 text-[11px] mt-1 uppercase tracking-wider font-bold">Local Mesh Discovery</p>
                 </div>
                 <button 
                   onClick={() => setShowScanner(!showScanner)}
-                  className={`p-2 rounded-xl transition-colors ${showScanner ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-emerald-400 hover:bg-zinc-700'}`}
+                  className={`p-2.5 rounded-xl transition-all shadow-lg active:scale-90 flex-shrink-0 ${showScanner ? 'bg-emerald-500 text-zinc-950 shadow-emerald-500/20' : 'bg-zinc-800 text-emerald-400 hover:bg-zinc-700'}`}
                   title="Scan QR Code"
                 >
                   <ScanLine className="w-5 h-5" />
@@ -1364,6 +1365,7 @@ export default function App() {
                 </div>
             </div>
           )}
+          </div>
         </div>
       )}
     </div>
