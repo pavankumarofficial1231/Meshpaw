@@ -1,0 +1,5 @@
+{
+  "name": "MeshNet P2P Chat",
+  "description": "An off-grid, mobile-first P2P mesh networking chat application using WebRTC and PeerJS.",
+  "requestFramePermissions": []
+}
