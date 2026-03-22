@@ -1,10 +1,1 @@
 @import "tailwindcss";
-
-/* Slow pulse animation used on radar nodes */
-@keyframes pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-.animate-pulse-slow {
-  animation: pulse-slow 3s ease-in-out infinite;
-}
