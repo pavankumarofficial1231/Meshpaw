@@ -569,63 +569,93 @@ export default function App() {
     : 0;
 
   return (
-    <div>
+    <div className="flex w-full h-[100dvh] overflow-hidden bg-zinc-950 font-sans text-zinc-100 selection:bg-emerald-500/30">
       
       {/* ── MOBILE OVERLAY BACKDROP ── */}
       {showSidebar && (
-        <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-30 md:hidden"
+        <div 
+          className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm transition-opacity md:hidden"
           onClick={() => setShowSidebar(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* ── DESKTOP SIDEBAR ── */}
-      <aside className="desktop-sidebar">
-        {/* Brand */}
-        <div className="p-5 border-b border-zinc-800/50 flex items-center gap-3">
-          <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/30 flex-shrink-0">
-            <MeshLogo className="w-6 h-6 text-emerald-400" />
+      {/* ── UNIFIED SIDEBAR (Mobile Drawer + Desktop Fixed Column) ── */}
+      <aside 
+        className={`
+          fixed inset-y-0 left-0 z-50 w-[280px] sm:w-[320px] 
+          flex flex-col bg-zinc-950 border-r border-zinc-800/60
+          transform transition-transform duration-300 ease-in-out
+          md:relative md:translate-x-0 md:flex-shrink-0
+          ${showSidebar ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
+        `}
+      >
+        {/* Brand Header */}
+        <div className="flex items-center justify-between p-5 border-b border-zinc-800/50 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/30 flex-shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+              <MeshLogo className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div className="flex flex-col">
+              <h1 className="text-xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
+              <p className="text-[8px] font-mono text-emerald-500/80 uppercase tracking-[0.2em] mt-0.5">Off-Grid Protocol</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-black text-white tracking-tighter uppercase italic leading-none">MeshPaw</h1>
-            <p className="text-[8px] font-mono text-emerald-500/70 uppercase tracking-[0.2em] mt-0.5">Off-Grid Protocol v2.2</p>
-          </div>
+          {/* Mobile Close Button */}
+          <button 
+            onClick={() => setShowSidebar(false)} 
+            className="md:hidden p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors flex-shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Identity */}
-        <div className="px-4 pt-4 flex-shrink-0">
-          <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2.5 mb-4 flex items-center gap-2">
+        {/* Identity & Vault Section */}
+        <div className="px-4 pt-5 pb-2 flex-shrink-0">
+          <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-2.5 mb-5 flex items-center gap-2 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2 pointer-events-none" />
             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)] flex-shrink-0" />
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Offline Secure Vault Active</span>
+            <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest relative z-10">Local Secure Vault Active</span>
           </div>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Cloud Node ID</p>
-          <div className="flex items-center gap-2 bg-black/40 rounded-xl p-3 border border-zinc-800/50 mb-4">
-            <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center text-2xl flex-shrink-0 border border-zinc-800">
+          
+          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 px-1">My Cloud Node</h3>
+          <div className="flex items-center gap-3 bg-zinc-900/50 rounded-2xl p-3 border border-zinc-800/50 mb-2 relative overflow-hidden group">
+            <div className="w-11 h-11 bg-black rounded-full flex items-center justify-center text-2xl flex-shrink-0 border border-zinc-700 shadow-inner z-10">
               {myId ? generateAvatar(myId) : '⏳'}
             </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="font-bold text-sm text-zinc-100 truncate">{myId ? generateFoodName(myId) : '---'}</p>
-              <p className="font-mono text-[9px] text-emerald-500/60 uppercase">#MP-MESH-SAFE</p>
+            <div className="flex-1 min-w-0 z-10">
+              <p className="font-bold text-sm text-zinc-100 truncate">{myId ? generateFoodName(myId) : 'Connecting...'}</p>
+              <p className="font-mono text-[9px] text-emerald-500/60 uppercase truncate">#MP-MESH-SAFE</p>
             </div>
-            <button onClick={() => setShowQrModal(true)} className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-zinc-950 rounded-lg transition-all border border-emerald-500/20 flex-shrink-0">
+            <button 
+              onClick={() => { setShowQrModal(true); setShowSidebar(false); }} 
+              className="p-2.5 bg-zinc-800 text-zinc-300 hover:bg-emerald-500 hover:text-zinc-950 rounded-xl transition-all shadow-sm z-10 flex-shrink-0"
+              title="Show QR Code"
+            >
               <QrCode className="w-4 h-4" />
             </button>
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-zinc-800/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
           </div>
         </div>
 
-        {/* Scrollable Peers & Address Book */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Peers ({connections.size})</p>
-            <button onClick={() => setShowConnectModal(true)} className="p-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded transition-colors">
-              <Plus className="w-4 h-4" />
+        {/* Scrollable Lists (Peers & Address Book) */}
+        <div className="flex-1 overflow-y-auto px-4 pb-6 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+          
+          {/* Active Peers */}
+          <div className="mt-4 mb-3 flex items-center justify-between px-1">
+            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Active Links ({connections.size})</h3>
+            <button 
+              onClick={() => { setShowConnectModal(true); setShowSidebar(false); }} 
+              className="p-1 px-2 flex items-center gap-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-md transition-colors text-[10px] font-bold uppercase tracking-wider"
+            >
+              <Plus className="w-3 h-3" /> Add
             </button>
           </div>
+          
           {connections.size === 0 ? (
-            <div className="text-center py-6 text-zinc-600 text-xs mb-4">
-              <Users className="w-6 h-6 mx-auto mb-2 opacity-30" />
-              <p>No peers connected.</p>
+            <div className="text-center py-6 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800 text-zinc-600 text-[11px] mb-4">
+              <Users className="w-5 h-5 mx-auto mb-1.5 opacity-40" />
+              <p>Radar empty. Connect<br/>to local peers.</p>
             </div>
           ) : (
             <ul className="space-y-1.5 mb-6">
@@ -633,13 +663,17 @@ export default function App() {
                 const stats = peerStats.get(peerId);
                 const isFriend = friends.some(f => f.id === peerId);
                 return (
-                  <li key={peerId} className={`flex items-center gap-2 p-2.5 rounded-lg border ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-800/50 border-zinc-800'}`}>
-                    <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center text-sm flex-shrink-0">{generateAvatar(peerId)}</div>
-                    <div className="flex-1 overflow-hidden">
-                      <p className={`text-xs font-bold truncate ${isFriend ? 'text-amber-300' : 'text-zinc-200'}`}>{getDisplayName(peerId)}</p>
-                      {stats && <p className="text-[9px] font-mono text-emerald-400">{stats.latency}ms</p>}
+                  <li key={peerId} className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900/60 border-zinc-800/80'}`}>
+                    <div className="w-8 h-8 rounded-full bg-black/50 border border-zinc-700/50 flex items-center justify-center text-sm flex-shrink-0">{generateAvatar(peerId)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-bold leading-tight truncate ${isFriend ? 'text-amber-300' : 'text-zinc-200'}`}>{getDisplayName(peerId)}</p>
+                      {stats && <p className="text-[9px] font-mono text-emerald-500/90 leading-tight">{stats.latency}ms ping</p>}
                     </div>
-                    <button onClick={() => toggleFriend(peerId)} className={`p-1 rounded flex-shrink-0 ${isFriend ? 'text-amber-400' : 'text-zinc-600 hover:text-amber-400'}`}>
+                    <button 
+                      onClick={() => toggleFriend(peerId)} 
+                      className={`p-1.5 rounded-lg flex-shrink-0 transition-colors ${isFriend ? 'text-amber-400 bg-amber-400/10' : 'text-zinc-500 hover:text-amber-400 hover:bg-zinc-800'}`}
+                      title={isFriend ? "Remove from Address Book" : "Add to Address Book"}
+                    >
                       <Star className="w-3.5 h-3.5" fill={isFriend ? 'currentColor' : 'none'} />
                     </button>
                   </li>
@@ -648,29 +682,42 @@ export default function App() {
             </ul>
           )}
 
-          <div className="flex items-center gap-2 mb-3 pt-3 border-t border-zinc-800">
-            <Star className="w-3.5 h-3.5 text-emerald-500" />
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Address Book ({friends.filter(f => f.id !== myId).length})</p>
+          {/* Address Book */}
+          <div className="mt-6 pt-5 border-t border-zinc-800/60 mb-3 px-1 flex items-center gap-1.5">
+            <Star className="w-3 h-3 text-emerald-500" />
+            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Saved Contacts ({friends.filter(f => f.id !== myId).length})</h3>
           </div>
+          
           {friends.filter(f => f.id !== myId).length === 0 ? (
-            <p className="text-center py-3 text-zinc-600 text-[10px] italic border border-zinc-800/40 rounded-lg">No trusted friends yet.</p>
+            <p className="text-center py-4 text-zinc-600 text-[10px] italic">No trusted friends saved yet.</p>
           ) : (
             <ul className="space-y-1.5">
               {friends.filter(f => f.id !== myId).map(friend => {
                 const isConnected = connections.has(friend.id);
                 return (
-                  <li key={friend.id}
-                    onClick={() => { if (!isConnected && peer) { setupConnection(peer.connect(friend.id)); } }}
-                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${isConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900/40 border-zinc-800/30 hover:bg-zinc-800/60'}`}>
+                  <li 
+                    key={friend.id}
+                    onClick={() => { 
+                      if (!isConnected && peer) { 
+                        setupConnection(peer.connect(friend.id)); 
+                      } 
+                      setShowSidebar(false); 
+                    }}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${isConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-transparent border-transparent hover:bg-zinc-900/60 hover:border-zinc-800'}`}
+                  >
                     <div className="relative flex-shrink-0">
-                      <div className="w-8 h-8 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-sm">{generateAvatar(friend.id)}</div>
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950 ${isConnected ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+                      <div className="w-8 h-8 rounded-full bg-black/40 border border-zinc-800 flex items-center justify-center text-sm">{generateAvatar(friend.id)}</div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950 ${isConnected ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]' : 'bg-zinc-700'}`} />
                     </div>
-                    <div className="flex-1 overflow-hidden">
-                      <p className={`text-xs font-bold truncate ${isConnected ? 'text-amber-300' : 'text-zinc-300'}`}>{friend.name}</p>
-                      <p className="text-[9px] text-zinc-500 uppercase">{isConnected ? 'Online' : 'Tap to Ping'}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-bold leading-tight truncate ${isConnected ? 'text-amber-300' : 'text-zinc-300'}`}>{friend.name}</p>
+                      <p className="text-[9px] text-zinc-500 uppercase tracking-wide leading-tight mt-0.5">{isConnected ? 'Online via Mesh' : 'Tap to Connect'}</p>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); setViewPeerInfo(friend.id); }} className="p-1 text-zinc-600 hover:text-emerald-400 flex-shrink-0">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setViewPeerInfo(friend.id); setShowSidebar(false); }} 
+                      className="p-1.5 text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 rounded-lg flex-shrink-0 transition-colors"
+                      title="View Info"
+                    >
                       <Search className="w-3.5 h-3.5" />
                     </button>
                   </li>
@@ -681,121 +728,38 @@ export default function App() {
         </div>
       </aside>
 
-      {/* ── MOBILE DRAWER (fixed overlay, only rendered when open) ── */}
-      {showSidebar && (
-        <div className="fixed inset-y-0 left-0 z-40 w-80 max-w-[85vw] flex flex-col bg-zinc-950 border-r border-zinc-800/50 shadow-2xl md:hidden overflow-y-auto">
-          <div className="p-5 border-b border-zinc-800/50 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/30">
-                <MeshLogo className="w-6 h-6 text-emerald-400" />
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-white tracking-tighter uppercase italic">MeshPaw</h2>
-                <p className="text-[8px] font-mono text-emerald-500/70 uppercase tracking-[0.2em]">Off-Grid Protocol v2.2</p>
-              </div>
-            </div>
-            <button onClick={() => setShowSidebar(false)} className="p-2 text-zinc-500 hover:text-white bg-zinc-900 border border-zinc-800 rounded-lg flex-shrink-0">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="px-4 pt-4 flex-shrink-0">
-            <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-2.5 mb-4 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Offline Secure Vault Active</span>
-            </div>
-            <div className="flex items-center gap-2 bg-black/40 rounded-xl p-3 border border-zinc-800/50 mb-4">
-              <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center text-2xl flex-shrink-0 border border-zinc-800">{myId ? generateAvatar(myId) : '⏳'}</div>
-              <div className="flex-1 overflow-hidden">
-                <p className="font-bold text-sm text-zinc-100 truncate">{myId ? generateFoodName(myId) : '---'}</p>
-                <p className="font-mono text-[9px] text-emerald-500/60 uppercase">#MP-MESH-SAFE</p>
-              </div>
-              <button onClick={() => { setShowQrModal(true); setShowSidebar(false); }} className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 flex-shrink-0">
-                <QrCode className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 px-4 pb-6">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Peers ({connections.size})</p>
-              <button onClick={() => { setShowConnectModal(true); setShowSidebar(false); }} className="p-1 bg-emerald-500/10 text-emerald-400 rounded">
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-            {connections.size === 0 ? (
-              <div className="text-center py-6 text-zinc-600 text-xs mb-4"><Users className="w-6 h-6 mx-auto mb-2 opacity-30" /><p>No peers connected.</p></div>
-            ) : (
-              <ul className="space-y-1.5 mb-4">
-                {Array.from(connections.keys()).map((peerId: string) => {
-                  const stats = peerStats.get(peerId); const isFriend = friends.some(f => f.id === peerId);
-                  return (
-                    <li key={peerId} className={`flex items-center gap-3 p-3 rounded-lg border ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-800/50 border-zinc-800'}`}>
-                      <div className="w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center text-lg flex-shrink-0">{generateAvatar(peerId)}</div>
-                      <div className="flex-1 overflow-hidden"><p className={`font-bold text-sm truncate ${isFriend ? 'text-amber-300' : 'text-zinc-200'}`}>{getDisplayName(peerId)}</p>{stats && <p className="text-[10px] text-emerald-400 font-mono">{stats.latency}ms</p>}</div>
-                      <button onClick={() => toggleFriend(peerId)} className={`p-1.5 rounded flex-shrink-0 ${isFriend ? 'text-amber-400' : 'text-zinc-600'}`}><Star className="w-4 h-4" fill={isFriend ? 'currentColor' : 'none'} /></button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <div className="flex items-center gap-2 mb-3 pt-3 border-t border-zinc-800">
-              <Star className="w-3.5 h-3.5 text-emerald-500" />
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Address Book ({friends.filter(f => f.id !== myId).length})</p>
-            </div>
-            {friends.filter(f => f.id !== myId).length === 0 ? (
-              <p className="text-center py-3 text-zinc-600 text-[10px] italic">No trusted friends yet.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {friends.filter(f => f.id !== myId).map(friend => {
-                  const isConnected = connections.has(friend.id);
-                  return (
-                    <li key={friend.id} onClick={() => { if (!isConnected && peer) { setupConnection(peer.connect(friend.id)); } setShowSidebar(false); }}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer ${isConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900/40 border-zinc-800/30'}`}>
-                      <div className="relative flex-shrink-0">
-                        <div className="w-9 h-9 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center text-lg">{generateAvatar(friend.id)}</div>
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950 ${isConnected ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
-                      </div>
-                      <div className="flex-1 overflow-hidden">
-                        <p className={`font-bold text-sm truncate ${isConnected ? 'text-amber-300' : 'text-zinc-300'}`}>{friend.name}</p>
-                        <p className="text-[9px] text-zinc-500 uppercase">{isConnected ? 'Online' : 'Tap to Ping'}</p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Modern PWA Install Prompt (Overlay) */}
       {showInstallPrompt && !hasDismissedInstall && (
-        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-1rem)] max-w-sm bg-emerald-600 rounded-2xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-10 duration-500 border border-emerald-400/30 shadow-emerald-500/20">
-          <div className="bg-white/20 p-2.5 rounded-xl flex-shrink-0">
-            <Download className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-white text-sm leading-tight truncate">Install MeshPaw</h3>
-            <p className="text-emerald-50 text-[10px] opacity-90 leading-tight">Get the full off-grid PWA experience.</p>
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button 
-              onClick={dismissInstall}
-              className="px-2 py-2 text-white/80 hover:text-white text-[10px] font-bold uppercase tracking-tighter"
-            >
-              Later
-            </button>
-            <button 
-              onClick={handleInstallClick}
-              className="px-3 py-2 bg-white text-emerald-700 font-bold rounded-lg shadow-lg hover:bg-emerald-50 active:scale-95 transition-all text-[11px]"
-            >
-              Install
-            </button>
+        <div className="fixed bottom-[84px] md:bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-[340px] bg-zinc-900 overflow-hidden rounded-2xl shadow-2xl animate-in slide-in-from-bottom-10 duration-500 border border-emerald-500/30">
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent pointer-events-none" />
+          <div className="p-4 flex items-center gap-3 relative z-10">
+            <div className="bg-emerald-500 flex items-center justify-center w-10 h-10 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.4)] flex-shrink-0">
+              <Download className="w-5 h-5 text-zinc-950" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-white text-sm leading-tight truncate">Install MeshPaw</h3>
+              <p className="text-zinc-400 text-[10px] leading-tight mt-0.5 truncate">Full offline capabilities.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0 border-l border-zinc-800 pl-3">
+              <button 
+                onClick={dismissInstall}
+                className="p-2 text-zinc-500 hover:text-white transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={handleInstallClick}
+                className="px-3 py-1.5 bg-zinc-800 hover:bg-emerald-500 hover:text-zinc-950 text-emerald-400 font-bold rounded-lg shadow-lg active:scale-95 transition-all text-xs"
+              >
+                Add
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Main Chat Area */}
-      <div className="main-content flex flex-col bg-zinc-950 relative">
+      {/* ── MAIN CHAT AREA ── */}
+      <main className="flex-1 min-w-0 flex flex-col h-[100dvh] relative bg-[#09090b] z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
         
         {/* Header */}
         <header className="h-16 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-10">
@@ -991,47 +955,62 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
+          <div className="flex-1 overflow-y-auto w-full p-4 md:p-8 space-y-4 sm:space-y-6">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center p-8">
-              <div className="w-20 h-20 rounded-3xl bg-zinc-900 flex items-center justify-center border border-zinc-800 shadow-2xl mb-6 group hover:border-emerald-500/30 transition-all duration-500">
-                <PawPrint className="w-10 h-10 text-zinc-700 group-hover:text-emerald-500 transition-colors" />
+            <div className="h-full w-full max-w-lg mx-auto flex flex-col items-center justify-center relative">
+              {/* Premium Glow Backdrop */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none" />
+              
+              <div className="w-24 h-24 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shadow-2xl z-10 mb-8 relative">
+                <div className="absolute inset-0 rounded-full border border-emerald-500/30 animate-pulse-slow" />
+                <PawPrint className="w-10 h-10 text-emerald-500" />
               </div>
-              <div className="text-center max-w-sm mb-8">
-                <h3 className="text-white text-xl font-bold tracking-tight mb-2">No messages yet</h3>
-                <p className="text-zinc-500 text-sm leading-relaxed">Connect to a peer and start broadcasting to the local mesh network.</p>
+              
+              <div className="text-center z-10 w-full">
+                <h3 className="text-white text-2xl font-black tracking-tight mb-2">No Comm Traffic</h3>
+                <p className="text-zinc-400 text-sm leading-relaxed mb-8">
+                  You are off the grid. Broadast directly to peers over the local mesh network.
+                </p>
                 
-                <div className="flex flex-col gap-3 mt-8">
-                  <div className="bg-emerald-500/5 transition-all p-4 rounded-2xl border border-emerald-500/10 text-emerald-100/90 flex items-start gap-4 text-left">
-                    <div className="bg-emerald-500/20 p-2 rounded-lg"><Wifi className="w-5 h-5 text-emerald-400" /></div>
-                    <div className="text-xs leading-relaxed">
-                      <strong className="text-emerald-400 block mb-0.5">End-to-End Encrypted</strong>
-                      Your keys stay in local storage—never sent over the mesh or web.
+                <div className="grid gap-3 w-full max-w-md mx-auto">
+                  <div className="bg-zinc-900/50 backdrop-blur-md p-4 rounded-2xl border border-zinc-800/80 flex items-start gap-4 transition-colors hover:border-emerald-500/30 hover:bg-zinc-900 group">
+                    <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
+                      <Wifi className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div className="text-left flex-1">
+                      <strong className="text-zinc-200 block text-sm font-bold mb-1 group-hover:text-emerald-400 transition-colors">End-to-End Encrypted</strong>
+                      <p className="text-zinc-500 text-xs leading-relaxed">Your data remains in cold storage. Keys are never transmitted over the mesh.</p>
                     </div>
                   </div>
-                  <div className="bg-amber-500/5 transition-all p-4 rounded-2xl border border-amber-500/10 text-amber-100/90 flex items-start gap-4 text-left">
-                    <div className="bg-amber-500/20 p-2 rounded-lg"><Radar className="w-5 h-5 text-amber-400" /></div>
-                    <div className="text-xs leading-relaxed">
-                      <strong className="text-amber-400 block mb-0.5">Gossip Mesh</strong>
-                      Messages hop through peers to reach targets outside your direct range.
+                  
+                  <div className="bg-zinc-900/50 backdrop-blur-md p-4 rounded-2xl border border-zinc-800/80 flex items-start gap-4 transition-colors hover:border-amber-500/30 hover:bg-zinc-900 group">
+                    <div className="bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20 group-hover:bg-amber-500/20 transition-colors">
+                      <Radar className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <div className="text-left flex-1">
+                      <strong className="text-zinc-200 block text-sm font-bold mb-1 group-hover:text-amber-400 transition-colors">Gossip Protocol Flow</strong>
+                      <p className="text-zinc-500 text-xs leading-relaxed">Packets relay through trusted peers to reach targets beyond your hardware range.</p>
                     </div>
                   </div>
-                  <div className="bg-indigo-500/5 transition-all p-4 rounded-2xl border border-indigo-500/10 text-indigo-100/90 flex items-start gap-4 text-left">
-                    <div className="bg-indigo-500/20 p-2 rounded-lg"><WifiOff className="w-5 h-5 text-indigo-400" /></div>
-                    <div className="text-xs leading-relaxed">
-                      <strong className="text-indigo-400 block mb-0.5">Zero Internet Native</strong>
-                      Assets are cached for offline airplane-mode support. Works on Local LAN.
+                  
+                  <div className="bg-zinc-900/50 backdrop-blur-md p-4 rounded-2xl border border-zinc-800/80 flex items-start gap-4 transition-colors hover:border-indigo-500/30 hover:bg-zinc-900 group">
+                    <div className="bg-indigo-500/10 p-2.5 rounded-xl border border-indigo-500/20 group-hover:bg-indigo-500/20 transition-colors">
+                      <WifiOff className="w-5 h-5 text-indigo-400" />
+                    </div>
+                    <div className="text-left flex-1">
+                      <strong className="text-zinc-200 block text-sm font-bold mb-1 group-hover:text-indigo-400 transition-colors">Zero-Internet Architecture</strong>
+                      <p className="text-zinc-500 text-xs leading-relaxed">Designed natively for airgapped environments. Runs solely on WebRTC local LAN layers.</p>
                     </div>
                   </div>
                 </div>
+
+                <button 
+                  onClick={() => setShowConnectModal(true)}
+                  className="mt-8 px-10 py-4 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black rounded-2xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] hover:-translate-y-1 active:scale-95 uppercase tracking-widest text-xs inline-flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Activate Peer Link
+                </button>
               </div>
-              
-              <button 
-                onClick={() => setShowConnectModal(true)}
-                className="px-10 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black rounded-2xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-emerald-500/40 active:scale-95 uppercase tracking-widest text-xs"
-              >
-                Add Peer
-              </button>
             </div>
           ) : filteredMessages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
@@ -1145,7 +1124,7 @@ export default function App() {
           </form>
         </div>
         )}
-      </div>
+      </main>
 
       {/* Modals Overlay */}
       {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo) && (
@@ -1391,7 +1370,7 @@ export default function App() {
                      <Star className="w-4 h-4" />
                      {friends.some(f => f.id === viewPeerInfo) ? 'Remove from Address Book' : 'Save to Address Book'}
                    </button>
-                </div>
+                 </div>
             </div>
           )}
           </div>
@@ -1400,4 +1379,3 @@ export default function App() {
     </div>
   );
 }
-
