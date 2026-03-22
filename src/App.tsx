@@ -569,7 +569,7 @@ export default function App() {
     : 0;
 
   return (
-    <div className="flex w-full h-[100dvh] overflow-hidden bg-zinc-950 font-sans text-zinc-100 selection:bg-emerald-500/30">
+    <div className="flex w-full h-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100 selection:bg-emerald-500/30">
       
       {/* ── MOBILE OVERLAY BACKDROP ── */}
       {showSidebar && (
@@ -583,7 +583,7 @@ export default function App() {
       {/* ── UNIFIED SIDEBAR (Mobile Drawer + Desktop Fixed Column) ── */}
       <aside 
         className={`
-          fixed inset-y-0 left-0 z-50 w-[280px] sm:w-[320px] 
+          fixed inset-y-0 left-0 z-50 w-72 sm:w-80
           flex flex-col bg-zinc-950 border-r border-zinc-800/60
           transform transition-transform duration-300 ease-in-out
           md:relative md:translate-x-0 md:flex-shrink-0
@@ -730,7 +730,7 @@ export default function App() {
 
       {/* Modern PWA Install Prompt (Overlay) */}
       {showInstallPrompt && !hasDismissedInstall && (
-        <div className="fixed bottom-[84px] md:bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-[340px] bg-zinc-900 overflow-hidden rounded-2xl shadow-2xl animate-in slide-in-from-bottom-10 duration-500 border border-emerald-500/30">
+        <div className="fixed bottom-[84px] md:bottom-8 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-xs bg-zinc-900 overflow-hidden rounded-2xl shadow-2xl animate-in slide-in-from-bottom-10 duration-500 border border-emerald-500/30">
           <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent pointer-events-none" />
           <div className="p-4 flex items-center gap-3 relative z-10">
             <div className="bg-emerald-500 flex items-center justify-center w-10 h-10 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.4)] flex-shrink-0">
@@ -759,7 +759,7 @@ export default function App() {
       )}
 
       {/* ── MAIN CHAT AREA ── */}
-      <main className="flex-1 min-w-0 flex flex-col h-[100dvh] relative bg-[#09090b] z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
+      <main className="flex-1 min-w-0 flex flex-col h-screen relative bg-[#09090b] z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
         
         {/* Header */}
         <header className="h-16 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-10">
