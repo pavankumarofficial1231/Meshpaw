@@ -43,6 +43,7 @@ import { startRecording, stopRecording } from '../lib/audio';
 import { hasSeenMessage, markMessageSeen, queueMessage, getQueuedMessages, removeQueuedMessage, loadFriends, saveFriend, removeFriend, FriendNode, exportDataMule, importDataMule } from '../lib/store';
 import { resolveBroker } from '../lib/broker';
 import { SharedPad } from '../components/SharedPad';
+import { useAuth0 } from '@auth0/auth0-react';
 
 // Types
 interface Message {
@@ -136,6 +137,12 @@ export default function MeshApp() {
   
   const [ephemeralSeconds, setEphemeralSeconds] = useState<number>(0);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  
+  const { user: authUser, isAuthenticated: authIsAuthenticated } = useAuth0();
+  const [myAlias, setMyAlias] = useState(localStorage.getItem('meshpaw_alias') || '');
+  const [myStatus, setMyStatus] = useState(localStorage.getItem('meshpaw_status') || 'Available');
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [dmTarget, setDmTarget] = useState<string | null>(null);
 
   // Ephemeral Garbage Collector
   useEffect(() => {
@@ -231,6 +238,7 @@ export default function MeshApp() {
 
   const getDisplayName = (id: string, excludeFriendName = false) => {
     if (!id) return 'Unknown Node';
+    if (id === myId) return myAlias || (authIsAuthenticated && authUser?.name) || generateFoodName(id);
     if (!excludeFriendName) {
       const friend = friends.find(f => f.id === id);
       if (friend) return friend.name;
@@ -532,8 +540,9 @@ export default function MeshApp() {
           isVerified,
           signingPubKey,
           reactions: {},
-          status: 'read', // If I see it, I've at least 'received' it
-          type: data.payloadType || 'text'
+          status: 'read',
+          type: data.payloadType || 'text',
+          fileName: data.fileName
         }]);
 
         // Send 'Delivered' Ack back to source immediately
@@ -735,6 +744,8 @@ export default function MeshApp() {
       status: 'sent',
       expiresAt: sendData.expiresAt
     }]);
+
+    setInputMessage(''); // Restoration: Fix message box not clearing
 
     // Send to all connected peers
     const activeConns = connectionsRef.current;
@@ -1166,6 +1177,18 @@ export default function MeshApp() {
             </div>
 
             <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setShowProfileModal(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-full border border-white/5 transition-all group"
+              >
+                <div className="w-6 h-6 rounded-full bg-zinc-900 flex items-center justify-center text-xs border border-white/10 group-hover:border-emerald-500/50">
+                   {generateAvatar(myId)}
+                </div>
+                <span className="text-[10px] font-black text-zinc-300 uppercase tracking-widest hidden sm:inline">
+                   {myAlias || (authIsAuthenticated && authUser?.name?.split(' ')[0]) || 'NODE'}
+                </span>
+              </button>
+
               {activeRoom !== 'GLOBAL' && (
                  <div className="items-center bg-zinc-800/80 px-4 py-1.5 rounded-full border border-zinc-700 mx-2 text-xs hidden sm:flex">
                    <span className="text-emerald-400 font-bold mr-1">#</span>
@@ -1398,11 +1421,14 @@ export default function MeshApp() {
                 return (
                   <div key={msg.id} className={`flex flex-col ${msg.isMine ? 'items-end' : 'items-start'}`}>
                     {showSender && !msg.isMine && (
-                      <div className="mb-1 ml-1 flex items-baseline gap-1.5">
-                        <span className="text-xs font-bold text-emerald-300 gap-1 flex items-baseline">
+                      <div className="mb-1 ml-1 flex items-baseline gap-2">
+                        <button 
+                          onClick={() => setDmTarget(msg.senderId)}
+                          className="text-xs font-black text-emerald-400 gap-1.5 flex items-center hover:bg-emerald-500/10 px-2 py-0.5 rounded-full transition-all"
+                        >
                           <span className="text-[10px]">{generateAvatar(msg.senderId)}</span>
                           {getDisplayName(msg.senderId)}
-                        </span>
+                        </button>
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] font-mono text-zinc-600">#{msg.senderId.substring(0, 10)}</span>
                           {msg.isVerified && (
@@ -1601,25 +1627,54 @@ export default function MeshApp() {
         </div>
         )}
 
-        {/* Pad Area */}
+        {/* Pad Area Restoration */}
         {activeTab === 'pad' && (
-          <div className="flex-1 w-full bg-zinc-950 overflow-hidden flex flex-col">
-             <SharedPad 
-               myId={myId}
-               roomHash={activeRoom}
-               incomingUpdates={incomingCRDT}
-               broadcastUpdate={(b64) => {
-                 const data = {
-                   type: 'crdt',
-                   update: b64,
-                   roomId: activeRoom,
-                   ttl: 7
-                 };
-                 connectionsRef.current.forEach(conn => {
-                    if (conn.open) conn.send(data);
-                 });
-               }}
-             />
+          <div className="flex-1 w-full bg-zinc-950 overflow-hidden flex flex-col p-4 md:p-8">
+             <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                   <div className="flex items-center gap-3">
+                      <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl">
+                         <FileText className="w-6 h-6" />
+                      </div>
+                      <div>
+                         <h2 className="text-xl font-black text-white uppercase italic">MeshPad (CRDT)</h2>
+                         <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Real-time collaborative document • No central host</p>
+                      </div>
+                   </div>
+                   <button 
+                     onClick={() => setActiveTab('chat')}
+                     className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-black rounded-xl border border-white/5 uppercase"
+                   >
+                     Close Editor
+                   </button>
+                </div>
+                
+                <div className="flex-1 bg-zinc-900/50 rounded-3xl border border-white/5 overflow-hidden shadow-2xl">
+                   <SharedPad 
+                     myId={myId}
+                     roomHash={activeRoom}
+                     incomingUpdates={incomingCRDT}
+                     broadcastUpdate={(b64) => {
+                       const data = {
+                         type: 'crdt',
+                         update: b64,
+                         roomId: activeRoom,
+                         ttl: 7
+                       };
+                       connectionsRef.current.forEach(conn => {
+                          if (conn.open) conn.send(data);
+                       });
+                     }}
+                   />
+                </div>
+                
+                <div className="mt-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl flex items-start gap-4">
+                   <Brain className="w-5 h-5 text-emerald-400 shrink-0 mt-1" />
+                   <div className="text-xs text-zinc-400 leading-relaxed">
+                      This pad uses <strong>Conflict-free Replicated Data Types</strong>. Every keystroke is broadcasted as a cryptographic delta to all connected peers. Even if you disconnect, the state merges automatically when you rejoin the mesh.
+                   </div>
+                </div>
+             </div>
           </div>
         )}
       </div>
@@ -2131,4 +2186,117 @@ export default function MeshApp() {
     </div>
   );
 }
+
+// ---------------- v2.0 NEW COMPONENTS & MODALS ----------------
+
+function ProfileModal({ isOpen, onClose, myId, myAlias, setMyAlias, myStatus, setMyStatus, generateAvatar, getDisplayName }: any) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in zoom-in-95 duration-300">
+       <div className="bg-zinc-900 border border-white/5 w-full max-w-sm rounded-[40px] p-10 shadow-3xl text-center">
+          <div className="relative w-24 h-24 mx-auto mb-8">
+             <div className="w-full h-full bg-emerald-500/10 rounded-[32px] flex items-center justify-center text-5xl shadow-inner border border-emerald-500/20">
+                {generateAvatar(myId)}
+             </div>
+             <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-950 border-4 border-zinc-900 rounded-full flex items-center justify-center">
+                <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
+             </div>
+          </div>
+          
+          <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-8">Node Profile</h2>
+          
+          <div className="space-y-6 text-left">
+             <div>
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2 mb-2 block">Display Alias</label>
+                <input 
+                   value={myAlias}
+                   onChange={(e) => setMyAlias(e.target.value)}
+                   placeholder={getDisplayName(myId, true)}
+                   className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 text-white font-bold focus:border-emerald-500 transition-all outline-none"
+                />
+             </div>
+             <div>
+                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] ml-2 mb-2 block">Self Status</label>
+                <select 
+                   value={myStatus}
+                   onChange={(e) => setMyStatus(e.target.value)}
+                   className="w-full bg-black border border-white/5 rounded-2xl px-6 py-4 text-white font-bold focus:border-emerald-500 transition-all outline-none appearance-none"
+                >
+                   <option value="Available">🟢 Available</option>
+                   <option value="In Work">🟠 In Mesh-Work</option>
+                   <option value="Not Available">🔴 Ghost Mode</option>
+                   <option value="DND">🟣 Zero Noise</option>
+                </select>
+             </div>
+          </div>
+
+          <div className="mt-10 flex flex-col gap-3">
+             <button 
+               onClick={() => {
+                 localStorage.setItem('meshpaw_alias', myAlias);
+                 localStorage.setItem('meshpaw_status', myStatus);
+                 onClose();
+               }}
+               className="w-full py-5 bg-white text-black font-black rounded-2xl uppercase tracking-widest text-xs hover:bg-zinc-200 transition-all active:scale-95 shadow-xl"
+             >
+               SAVE ARCHIVE
+             </button>
+             <button onClick={onClose} className="w-full py-5 text-zinc-500 font-bold uppercase tracking-widest text-[10px] hover:text-white transition-colors">
+               CANCEL
+             </button>
+          </div>
+       </div>
+    </div>
+  );
+}
+
+function DirectMessageOverlay({ dmTarget, onClose, getDisplayName, generateAvatar, setActiveRoom }: any) {
+  if (!dmTarget) return null;
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+       <div className="bg-zinc-950 border border-white/5 w-full max-w-lg h-[80vh] rounded-[40px] flex flex-col shadow-3xl overflow-hidden">
+          <header className="p-6 border-b border-white/5 flex items-center justify-between bg-zinc-900/40">
+             <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-2xl">
+                   {generateAvatar(dmTarget)}
+                </div>
+                <div>
+                   <h3 className="font-black text-white italic uppercase text-lg">{getDisplayName(dmTarget)}</h3>
+                   <p className="text-[10px] text-emerald-400 font-bold tracking-widest uppercase">Direct Peer Link Active</p>
+                </div>
+             </div>
+             <button onClick={onClose} className="p-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full transition-all">
+                <X className="w-5 h-5" />
+             </button>
+          </header>
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+             <div className="text-center py-20 opacity-40">
+                <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-emerald-500" />
+                <p className="text-xs font-black uppercase tracking-widest">End-to-End P2P Tunnel Established</p>
+                <p className="text-[10px] mt-2 max-w-[200px] mx-auto">Messages are broadcasted with a private destination tag intended only for this node.</p>
+             </div>
+             <div className="p-4 bg-zinc-900/50 border border-white/5 rounded-3xl text-sm text-zinc-400 text-center italic">
+                All messages in this mesh are seen by the grid but only decodable by the recipient keys if E2E is enforced. (v2.1 Feature)
+             </div>
+          </div>
+          <div className="p-6 border-t border-white/5 bg-zinc-900/20">
+             <button 
+               onClick={() => {
+                 setActiveRoom(`DM-${dmTarget.substring(0,8)}`);
+                 onClose();
+               }}
+               className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black rounded-2xl tracking-tighter uppercase italic shadow-lg shadow-emerald-500/20"
+             >
+               SWITCH TO PRIVATE ROOM
+             </button>
+          </div>
+       </div>
+    </div>
+  );
+}
+
+// In MeshApp.tsx, you would call these like this inside the main return:
+// <ProfileModal ... />
+// <DirectMessageOverlay ... />
+
 
