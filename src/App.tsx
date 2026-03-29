@@ -103,16 +103,11 @@ export default function App() {
   const [viewPeerInfo, setViewPeerInfo] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [scannedIdentity, setScannedIdentity] = useState<{ id: string; alias: string; pub: string; ver: number } | null>(null);
   const [forceCloud, setForceCloud] = useState(false);
   const [nonce, setNonce] = useState(0); // For forced re-initialization
 
 
-  
-  const addLog = (msg: string) => {
-    console.log(`[Mesh Log] ${msg}`);
-  };
   
   // Database State
   const [friends, setFriends] = useState<FriendNode[]>([]);
@@ -124,10 +119,10 @@ export default function App() {
     loadFriends()
       .then(f => {
         setFriends(f);
-        addLog(`DB Connected: ${f.length} peers saved.`);
+        console.log(`DB Connected: ${f.length} peers saved.`);
       })
       .catch(err => {
-        addLog(`ERR: Database Blocked. Check browser shields.`);
+        console.log(`ERR: Database Blocked. Check browser shields.`);
       });
   }, []);
 
@@ -205,14 +200,14 @@ export default function App() {
     try {
       if (savedKeys) {
         keys = JSON.parse(savedKeys);
-        addLog(`Keys Loaded: ${keys.publicKey.substring(0, 10)}...`);
+        console.log(`Keys Loaded: ${keys.publicKey.substring(0, 10)}...`);
       } else {
         keys = generateKeys();
         localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
-        addLog(`New Identity Forged.`);
+        console.log(`New Identity Forged.`);
       }
     } catch (e) {
-      addLog(`ERR: Cryptography fail. Browser blocks window.crypto?`);
+      console.log(`ERR: Cryptography fail. Browser blocks window.crypto?`);
       return;
     }
     
@@ -249,19 +244,19 @@ export default function App() {
       myIdRef.current = id;
       setMyId(id);
       setStatus('connected');
-      addLog(`Signaling OK. ID: ${id}`);
-      addLog(`Broker: ${isCloud ? 'PeerJS Cloud' : 'Local Mesh'}`);
+      console.log(`Signaling OK. ID: ${id}`);
+      console.log(`Broker: ${isCloud ? 'PeerJS Cloud' : 'Local Mesh'}`);
     });
 
     newPeer.on('connection', (conn) => {
-      addLog(`Incoming link: ${conn.peer}`);
+      console.log(`Incoming link: ${conn.peer}`);
       setupConnection(conn);
     });
 
     newPeer.on('error', (err: any) => {
       const type = err.type || 'unknown';
       const msg = err.message || 'Check terminal';
-      addLog(`ERR: ${type} - ${msg}`);
+      console.log(`ERR: ${type} - ${msg}`);
       
       if (type === 'invalid-id' || type === 'unavailable-id') {
         setStatus('disconnected');
@@ -1247,7 +1242,7 @@ export default function App() {
                        });
                        setFriends(await loadFriends());
                        setScannedIdentity(null);
-                       addLog(`Identity Saved: ${node.alias}`);
+                       console.log(`Identity Saved: ${node.alias}`);
                        
                        // Auto-connect
                        if (peer) {
@@ -1375,7 +1370,7 @@ export default function App() {
                         if (data.id && data.pub && data.id !== myId) {
                           setScannedIdentity(data);
                           setShowScanner(false);
-                          addLog(`Identity Packet Found: ${data.alias}`);
+                          console.log(`Identity Packet Found: ${data.alias}`);
                         }
                       } catch (e) {
                          // Fallback for legacy plain-text IDs
