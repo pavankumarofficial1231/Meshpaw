@@ -22,10 +22,11 @@ import {
   Download,
   ScanLine,
   Radar,
-  Star
+  Star,
+  ShieldCheck
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import { generateKeys, KeyPair } from './lib/crypto';
+import { generateKeys, KeyPair, signData, verifyData } from './lib/crypto';
 import { hasSeenMessage, markMessageSeen, queueMessage, getQueuedMessages, removeQueuedMessage, loadFriends, saveFriend, removeFriend, FriendNode } from './lib/store';
 
 // Types
@@ -35,6 +36,8 @@ interface Message {
   text: string;
   timestamp: number;
   isMine: boolean;
+  isVerified?: boolean;
+  signingPubKey?: string;
   reactions?: Record<string, string[]>;
 }
 
@@ -329,6 +332,14 @@ export default function App() {
           } catch (e) { console.error('Silent notification fail', e); }
         }
 
+        // 3. Verify Signature
+        const signature = data.signature;
+        const signingPubKey = data.signingPubKey;
+        let isVerified = false;
+        if (signature && signingPubKey) {
+          isVerified = verifyData(`${data.text}${data.sourceId}${data.timestamp}`, signature, signingPubKey);
+        }
+
         // Render to UI
         setMessages(prev => [...prev, {
           id: data.id,
@@ -336,6 +347,8 @@ export default function App() {
           text: data.text,
           timestamp: data.timestamp,
           isMine: false,
+          isVerified,
+          signingPubKey,
           reactions: {}
         }]);
 
@@ -422,10 +435,12 @@ export default function App() {
     e.preventDefault();
     if (!inputMessage.trim()) return;
 
-    // The UUID of the packet
+    // Packet Structure
     const messageId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
     
-    // Packet Structure
+    // Sign the message
+    const { signature, signingPubKey } = signData(`${inputMessage.trim()}${myId}${Date.now()}`, keyPair?.secretKey || '');
+
     const messageData = {
       type: 'message',
       id: messageId,
@@ -433,7 +448,9 @@ export default function App() {
       destId: 'ALL',   // Target ID
       ttl: 7,          // Time to Live (7 hops)
       text: inputMessage.trim(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      signature,
+      signingPubKey
     };
 
     // Mark as seen so we don't echo our own messages
@@ -446,6 +463,8 @@ export default function App() {
       text: inputMessage.trim(),
       timestamp: messageData.timestamp,
       isMine: true,
+      isVerified: true, // Mine is always verified to me!
+      signingPubKey,
       reactions: {}
     }]);
 
@@ -542,7 +561,7 @@ export default function App() {
     : 0;
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen h-[100dvh] bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
       
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar (Desktop) / Drawer (Mobile) */}
@@ -833,7 +852,7 @@ export default function App() {
               <p className="text-zinc-400 max-w-md mx-auto text-xs md:text-sm">Visualizing active P2P connections.</p>
             </div>
             
-            <div className="relative w-72 h-72 sm:w-96 sm:h-96 md:w-[500px] md:h-[500px] rounded-full border border-emerald-500/20 bg-emerald-950/20 shadow-[0_0_100px_rgba(16,185,129,0.1)] flex items-center justify-center overflow-hidden">
+            <div className="relative w-72 h-72 sm:w-96 sm:h-96 md:w-[500px] md:h-[500px] aspect-square rounded-full border border-emerald-500/20 bg-emerald-950/20 shadow-[0_0_100px_rgba(16,185,129,0.1)] flex items-center justify-center overflow-hidden">
               {/* Radar Circles */}
               <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-75"></div>
               <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-50"></div>
@@ -937,11 +956,16 @@ export default function App() {
                   <div key={msg.id} className={`flex flex-col ${msg.isMine ? 'items-end' : 'items-start'}`}>
                     {showSender && !msg.isMine && (
                       <div className="mb-1 ml-1 flex items-baseline gap-1.5">
-                    <span className="text-xs font-bold text-emerald-300 gap-1 flex items-baseline">
+                        <span className="text-xs font-bold text-emerald-300 gap-1 flex items-baseline">
                           <span className="text-[10px]">{generateAvatar(msg.senderId)}</span>
                           {getDisplayName(msg.senderId)}
                         </span>
-                        <span className="text-[10px] font-mono text-zinc-600">#{msg.senderId.substring(0, 10)}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-mono text-zinc-600">#{msg.senderId.substring(0, 10)}</span>
+                          {msg.isVerified && (
+                             <ShieldCheck className="w-3 h-3 text-emerald-500" title="Verified Mesh Identity" />
+                          )}
+                        </div>
                       </div>
                     )}
                     
@@ -1039,7 +1063,7 @@ export default function App() {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full border-t border-zinc-800 bg-zinc-950/90 backdrop-blur-lg z-50 pb-safe">
+      <div className="md:hidden fixed bottom-0 left-0 w-full border-t border-zinc-800 bg-zinc-950/90 [backdrop-filter:blur(8px)] backdrop-blur-lg z-50 pb-safe">
          <div className="flex justify-around items-center h-16 px-2">
             <button onClick={() => setActiveTab('chat')} className={`flex flex-col items-center gap-1 flex-1 py-2 ${activeTab === 'chat' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'}`}>
                 <MessageSquare className="w-6 h-6"/>

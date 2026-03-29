@@ -14,6 +14,9 @@ export const generateKeys = (): KeyPair => {
   };
 };
 
+/**
+ * Authenticated Encryption (End-to-End)
+ */
 export const encryptMessage = (
   text: string, 
   receiverPublicKeyBase64: string, 
@@ -52,5 +55,36 @@ export const decryptMessage = (
   } catch (err) {
     console.error('Failed to decrypt message:', err);
     return null;
+  }
+};
+
+/**
+ * Digital Signatures (For Mesh Authentication)
+ * We derive an Ed25519 signing key from the Curve25519 box secret key.
+ */
+export const getSigningKeyPair = (boxSecretKeyBase64: string) => {
+  const seed = decodeBase64(boxSecretKeyBase64).slice(0, 32);
+  return nacl.sign.keyPair.fromSeed(seed);
+};
+
+export const signData = (text: string, boxSecretKeyBase64: string): { signature: string; signingPubKey: string } => {
+  const messageUint8 = decodeUTF8(text);
+  const signKeys = getSigningKeyPair(boxSecretKeyBase64);
+  const signed = nacl.sign.detached(messageUint8, signKeys.secretKey);
+  return {
+    signature: encodeBase64(signed),
+    signingPubKey: encodeBase64(signKeys.publicKey)
+  };
+};
+
+export const verifyData = (text: string, signatureBase64: string, signingPubKeyBase64: string): boolean => {
+  try {
+    const messageUint8 = decodeUTF8(text);
+    const signature = decodeBase64(signatureBase64);
+    const signingPubKey = decodeBase64(signingPubKeyBase64);
+    return nacl.sign.detached.verify(messageUint8, signature, signingPubKey);
+  } catch (err) {
+    console.error('Signature verification failed:', err);
+    return false;
   }
 };
