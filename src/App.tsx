@@ -95,6 +95,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'radar' | 'peers'>('chat');
   const [pendingPeerPrompt, setPendingPeerPrompt] = useState<string | null>(null);
   const [viewPeerInfo, setViewPeerInfo] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   
   // Database State
   const [friends, setFriends] = useState<FriendNode[]>([]);
@@ -416,19 +418,42 @@ export default function App() {
     e.preventDefault();
     if (!peer || !connectId.trim() || connectId === myId) return;
     
+    setIsConnecting(true);
+    setConnectionError(null);
+
     const targetId = connectId.trim();
     
     if (connections.has(targetId)) {
       setShowConnectModal(false);
+      setIsConnecting(false);
       setConnectId('');
       return;
     }
 
     const conn = peer.connect(targetId);
-    setupConnection(conn);
     
-    setShowConnectModal(false);
-    setConnectId('');
+    // Add a timeout for connection
+    const timeout = setTimeout(() => {
+      if (!connections.has(targetId)) {
+        setConnectionError('Connection timed out. Peer might be offline.');
+        setIsConnecting(false);
+      }
+    }, 10000);
+
+    conn.on('open', () => {
+      clearTimeout(timeout);
+      setupConnection(conn);
+      setShowConnectModal(false);
+      setIsConnecting(false);
+      setConnectId('');
+    });
+
+    conn.on('error', (err) => {
+      clearTimeout(timeout);
+      console.error('Conn error:', err);
+      setConnectionError('Failed to establish connection.');
+      setIsConnecting(false);
+    });
   };
 
   const sendMessage = async (e: React.FormEvent) => {
@@ -437,9 +462,10 @@ export default function App() {
 
     // Packet Structure
     const messageId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
+    const timestamp = Date.now();
     
-    // Sign the message
-    const { signature, signingPubKey } = signData(`${inputMessage.trim()}${myId}${Date.now()}`, keyPair?.secretKey || '');
+    // Sign the message (using the exact same values as the packet)
+    const { signature, signingPubKey } = signData(`${inputMessage.trim()}${myId}${timestamp}`, keyPair?.secretKey || '');
 
     const messageData = {
       type: 'message',
@@ -448,7 +474,7 @@ export default function App() {
       destId: 'ALL',   // Target ID
       ttl: 7,          // Time to Live (7 hops)
       text: inputMessage.trim(),
-      timestamp: Date.now(),
+      timestamp: timestamp,
       signature,
       signingPubKey
     };
@@ -1164,12 +1190,26 @@ export default function App() {
                   />
                 </div>
                 
+                {connectionError && (
+                  <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                    <X className="w-4 h-4 flex-shrink-0" />
+                    {connectionError}
+                  </div>
+                )}
+                
                 <button
                   type="submit"
-                  disabled={!connectId.trim() || connectId.length < 20}
-                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-bold rounded-lg transition-colors"
+                  disabled={!connectId.trim() || connectId.length < 20 || isConnecting}
+                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  Connect
+                  {isConnecting ? (
+                    <>
+                      <div className="w-4 h-4 rounded-full border-2 border-zinc-950 border-t-transparent animate-spin"></div>
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect'
+                  )}
                 </button>
               </form>
             </div>
