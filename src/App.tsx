@@ -193,9 +193,22 @@ export default function App() {
     const peerId = `mp-${base64Safe}-t`;
     
     setStatus('connecting');
-    const newPeer = new Peer(peerId, {
+    
+    // Auto-detect if we are on a true off-grid local network (e.g. localhost, typical hotspot IPs)
+    const hostname = window.location.hostname;
+    const isLocalMesh = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
+    
+    const peerConfig = isLocalMesh ? {
+      host: hostname,
+      port: 9000,
+      path: '/myapp',
+      secure: window.location.protocol === 'https:',
       debug: 2
-    });
+    } : {
+      debug: 2
+    };
+
+    const newPeer = new Peer(peerId, peerConfig);
 
     newPeer.on('open', (id) => {
       setMyId(id);
@@ -215,12 +228,14 @@ export default function App() {
 
     newPeer.on('disconnected', () => {
       setStatus('disconnected');
-      // Try to reconnect
+      // If we got violently disconnected but still have the object, try reconnecting
       setTimeout(() => {
         if (!newPeer.destroyed) {
+          console.log("Attempting to reconnect to Mesh signaling server...");
           newPeer.reconnect();
+          setStatus('connecting');
         }
-      }, 3000);
+      }, 5000);
     });
 
     setPeer(newPeer);
