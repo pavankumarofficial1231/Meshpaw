@@ -203,9 +203,18 @@ export default function App() {
       port: 9000,
       path: '/myapp',
       secure: window.location.protocol === 'https:',
-      debug: 2
+      debug: 2,
+      config: {
+        iceServers: [] // Force local LAN host candidates only, bypass STUN hang when offline
+      }
     } : {
-      debug: 2
+      debug: 2,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ]
+      }
     };
 
     const newPeer = new Peer(peerId, peerConfig);
@@ -450,10 +459,10 @@ export default function App() {
     // Add a timeout for connection
     const timeout = setTimeout(() => {
       if (!connections.has(targetId)) {
-        setConnectionError('Connection timed out. Peer might be offline.');
+        setConnectionError('Connection timed out. Peer might be offline or STUN blocked.');
         setIsConnecting(false);
       }
-    }, 10000);
+    }, 15000);
 
     conn.on('open', () => {
       clearTimeout(timeout);
