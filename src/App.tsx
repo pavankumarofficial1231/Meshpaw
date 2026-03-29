@@ -194,20 +194,18 @@ export default function App() {
     
     setStatus('connecting');
 
-    // Use local PeerServer if on LAN, otherwise use PeerJS cloud
-    const hostname = window.location.hostname;
-    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' 
-      || hostname.startsWith('192.168.') || hostname.startsWith('10.') 
-      || hostname.startsWith('172.');
+    // Single unified config: ALL devices (laptop, phone on LAN) connect to the
+    // same PeerServer via Vite's /myapp proxy — no complex detection needed.
+    // Laptop: localhost:3000/myapp → proxied → localhost:9000
+    // Phone:  192.168.x.x:3000/myapp → same proxy → same PeerServer
+    const newPeer = new Peer(peerId, {
+      host: window.location.hostname,
+      port: parseInt(window.location.port || (window.location.protocol === 'https:' ? '443' : '80')),
+      path: '/myapp',
+      secure: window.location.protocol === 'https:',
+      debug: 1,
+    });
 
-    const newPeer = isLocal
-      ? new Peer(peerId, {
-          host: hostname,
-          port: 9000,
-          path: '/myapp',
-          debug: 1
-        })
-      : new Peer(peerId, { debug: 1 });
 
     newPeer.on('open', (id) => {
       setMyId(id);
