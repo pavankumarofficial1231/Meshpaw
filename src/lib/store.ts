@@ -4,9 +4,11 @@ export interface MeshMessage {
   id: string;        // UUID of the packet
   sourceId: string;  // Original Sender's Public Key/ID
   destId: string;    // Target Recipient's Public Key/ID, or 'ALL' for unencrypted broadcast
+  roomId?: string;   // Optional Room Hash for Group Chats
   seqId: number;     // Sequence Number preventing replay errors
   ttl: number;       // Time-to-live counter (e.g., 7)
   payload: string;   // The Encrypted text payload using Receiver's PubKey (if not 'ALL')
+  type?: 'text' | 'audio'; // The type of the payload
   timestamp: number;
 }
 

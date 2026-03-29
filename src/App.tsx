@@ -26,12 +26,18 @@ import {
   ShieldCheck,
   Settings,
   Check,
-  CheckCheck
+  CheckCheck,
+  Mic,
+  Square,
+  Hash,
+  FileText
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { generateKeys, KeyPair, signData, verifyData } from './lib/crypto';
+import { startRecording, stopRecording } from './lib/audio';
 import { hasSeenMessage, markMessageSeen, queueMessage, getQueuedMessages, removeQueuedMessage, loadFriends, saveFriend, removeFriend, FriendNode } from './lib/store';
 import { resolveBroker } from './lib/broker';
+import { SharedPad } from './components/SharedPad';
 
 // Types
 interface Message {
@@ -44,6 +50,8 @@ interface Message {
   signingPubKey?: string;
   reactions?: Record<string, string[]>;
   status: 'sent' | 'delivered' | 'read';
+  type?: 'text' | 'audio';
+  roomId?: string;
 }
 
 interface PeerStat {
@@ -104,7 +112,8 @@ export default function App() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [hasDismissedInstall, setHasDismissedInstall] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'radar' | 'peers'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'radar' | 'peers' | 'pad'>('chat');
+  const [incomingCRDT, setIncomingCRDT] = useState<Uint8Array[]>([]);
   const [pendingPeerPrompt, setPendingPeerPrompt] = useState<string | null>(null);
   const [viewPeerInfo, setViewPeerInfo] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -112,13 +121,56 @@ export default function App() {
   const [scannedIdentity, setScannedIdentity] = useState<{ id: string; alias: string; pub: string; ver: number } | null>(null);
   const [forceCloud, setForceCloud] = useState(false);
   const [nonce, setNonce] = useState(0); // For forced re-initialization
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [activeRoom, setActiveRoom] = useState<string>('GLOBAL');
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [roomInput, setRoomInput] = useState('');
+
+  const hashRoomName = async (name: string) => {
+    if (!name || name.trim().toUpperCase() === 'GLOBAL') return 'GLOBAL';
+    const msgUint8 = new TextEncoder().encode(name.trim());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+  };
 
 
   
-  // Database State
   const [friends, setFriends] = useState<FriendNode[]>([]);
+  const [discoveredPeers, setDiscoveredPeers] = useState<string[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Local Discovery Polling
+  useEffect(() => {
+    let interval: any;
+    const fetchLocalPeers = async () => {
+      if (activeTab !== 'radar' || !peer || forceCloud) return;
+      try {
+        const isSecure = peer.options.secure ? 'https' : 'http';
+        const hostname = peer.options.host;
+        const port = peer.options.port ? `:${peer.options.port}` : '';
+        const path = peer.options.path || '/peerjs';
+        
+        // PeerJS default discovery endpoint when allow_discovery: true
+        const res = await fetch(`${isSecure}://${hostname}${port}${path}/peerjs/peers`);
+        const data = await res.json();
+        
+        if (Array.isArray(data)) {
+          setDiscoveredPeers(data.filter((id: string) => id !== myIdRef.current && !connectionsRef.current.has(id)));
+        }
+      } catch (e) {
+        // Discovery endpoint probably not enabled on remote brokers
+      }
+    };
+    
+    if (activeTab === 'radar') {
+       fetchLocalPeers();
+       interval = setInterval(fetchLocalPeers, 4000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab, forceCloud, peer]);
 
   // Load Friends from DB
   useEffect(() => {
@@ -443,6 +495,7 @@ export default function App() {
         // Render to UI
         setMessages(prev => [...prev, {
           id: data.id,
+          roomId: data.roomId || 'GLOBAL',
           senderId: data.sourceId || conn.peer,
           text: data.text,
           timestamp: data.timestamp,
@@ -450,7 +503,8 @@ export default function App() {
           isVerified,
           signingPubKey,
           reactions: {},
-          status: 'read'
+          status: 'read', // If I see it, I've at least 'received' it
+          type: data.payloadType || 'text'
         }]);
 
         // Send 'Delivered' Ack back to source immediately
@@ -498,6 +552,21 @@ export default function App() {
           }
           return msg;
         }));
+      } else if (data.type === 'crdt') {
+        if (data.roomId === activeRoom) {
+           const decoded = Uint8Array.from(atob(data.update), c => c.charCodeAt(0));
+           setIncomingCRDT(prev => [...prev, decoded]);
+        }
+        // Rebroadcast CRDT (Gossip)
+        const ttl = typeof data.ttl === 'number' ? data.ttl : 7;
+        if (ttl > 1) {
+          const forwardedData = { ...data, ttl: ttl - 1 };
+          connectionsRef.current.forEach(forwardConn => {
+            if (forwardConn.open && forwardConn.peer !== conn.peer) {
+               forwardConn.send(forwardedData);
+            }
+          });
+        }
       } else if (data.type === 'ack') {
         setMessages(prev => prev.map(msg => {
           if (msg.id === data.messageId && msg.isMine) {
@@ -609,6 +678,7 @@ export default function App() {
     const messageData = {
       type: 'message',
       id: messageId,
+      roomId: activeRoom,
       sourceId: myIdRef.current,  // Source ID
       destId: 'ALL',   // Target ID
       ttl: 7,          // Time to Live (7 hops)
@@ -624,6 +694,7 @@ export default function App() {
     // Render locally immediately
     setMessages(prev => [...prev, {
       id: messageId,
+      roomId: activeRoom,
       senderId: myId,
       text: inputMessage.trim(),
       timestamp: messageData.timestamp,
@@ -646,6 +717,7 @@ export default function App() {
       // Offline mode: Queue for the future forward
       await queueMessage({
         id: messageId,
+        roomId: activeRoom,
         sourceId: myIdRef.current,
         destId: 'ALL',
         seqId: 0,
@@ -655,7 +727,87 @@ export default function App() {
       });
     }
 
-    setInputMessage('');
+  };
+
+  const sendAudioMessage = async (base64Audio: string) => {
+    const text = base64Audio;
+    const messageId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
+    const timestamp = Date.now();
+    const { signature, signingPubKey } = signData(`${text}${myIdRef.current}${timestamp}`, keyPairRef.current?.secretKey || '');
+
+    const messageData = {
+      type: 'message',
+      payloadType: 'audio',
+      id: messageId,
+      roomId: activeRoom,
+      sourceId: myIdRef.current,
+      destId: 'ALL',
+      ttl: 7,
+      text: text,
+      timestamp: timestamp,
+      signature,
+      signingPubKey
+    };
+
+    await markMessageSeen(messageId);
+
+    setMessages(prev => [...prev, {
+      id: messageId,
+      roomId: activeRoom,
+      senderId: myIdRef.current || myId,
+      text: text,
+      timestamp: timestamp,
+      isMine: true,
+      isVerified: true,
+      signingPubKey,
+      reactions: {},
+      status: 'sent',
+      type: 'audio'
+    }]);
+
+    const activeConns = connectionsRef.current;
+    if (activeConns.size > 0) {
+      activeConns.forEach(conn => {
+        if (conn.open) {
+          conn.send(messageData);
+        }
+      });
+    } else {
+      await queueMessage({
+        id: messageId,
+        roomId: activeRoom,
+        sourceId: myIdRef.current,
+        destId: 'ALL',
+        seqId: 0,
+        ttl: 7,
+        payload: text,
+        timestamp: timestamp,
+        type: 'audio'
+      });
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+       if (mediaRecorderRef.current) {
+         try {
+           const base64Audio = await stopRecording(mediaRecorderRef.current);
+           setIsRecording(false);
+           mediaRecorderRef.current = null;
+           sendAudioMessage(base64Audio);
+         } catch (e) {
+           console.error(e);
+           setIsRecording(false);
+         }
+       }
+    } else {
+       try {
+         mediaRecorderRef.current = await startRecording();
+         setIsRecording(true);
+       } catch (e) {
+         console.error("Mic access denied", e);
+       }
+    }
   };
 
   const formatTime = (ts: number) => {
@@ -718,9 +870,11 @@ export default function App() {
     setActiveReactionMsg(null);
   };
 
-  const filteredMessages = messages.filter(msg => 
-    msg.text.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredMessages = messages.filter(msg => {
+    const matchRoom = (msg.roomId || 'GLOBAL') === activeRoom;
+    const matchSearch = msg.text.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchRoom && matchSearch;
+  });
 
   const avgLatency = connectionsRef.current.size > 0 
     ? Math.round(Array.from(statsRef.current.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + stat.latency, 0) / connectionsRef.current.size)
@@ -751,6 +905,13 @@ export default function App() {
               >
                 <MessageSquare className="w-4 h-4" />
                 <span className="text-sm font-semibold">Messages</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('pad')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'pad' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <FileText className="w-4 h-4" />
+                <span className="text-sm font-semibold">MeshPad CRDT</span>
               </button>
               <button 
                 onClick={() => setActiveTab('radar')}
@@ -974,6 +1135,20 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3">
+              {activeRoom !== 'GLOBAL' && (
+                 <div className="items-center bg-zinc-800/80 px-4 py-1.5 rounded-full border border-zinc-700 mx-2 text-xs hidden sm:flex">
+                   <span className="text-emerald-400 font-bold mr-1">#</span>
+                   <span className="text-zinc-200 font-mono">{activeRoom.substring(0, 10)}</span>
+                   <button onClick={() => setActiveRoom('GLOBAL')} className="ml-2 text-zinc-500 hover:text-rose-400 transition-colors"><X className="w-3 h-3"/></button>
+                 </div>
+              )}
+              <button 
+                onClick={() => setShowRoomModal(true)}
+                className={`p-2 rounded-full transition-colors flex items-center gap-2 ${activeRoom !== 'GLOBAL' ? 'text-emerald-400 bg-emerald-400/10' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
+                title="Join Room"
+              >
+                <Hash className="w-5 h-5" />
+              </button>
               <button 
                 onClick={() => {
                   setShowSearch(!showSearch);
@@ -1054,8 +1229,9 @@ export default function App() {
 
               {/* Peers */}
               {Array.from(connections.keys()).map((peerId: string, index: number) => {
+                const totalNodes = Math.max(1, connections.size + discoveredPeers.length);
                 const isFriend = friends.some(f => f.id === peerId);
-                const angle = (index * (360 / Math.max(1, connections.size))) * (Math.PI / 180);
+                const angle = (index * (360 / totalNodes)) * (Math.PI / 180);
                 
                 // Keep bounding radius between 10% and 42% so it stays perfectly inside the radar dial!
                 const distance = 10 + (Math.abs(peerId.charCodeAt(0) % 32)); 
@@ -1080,6 +1256,35 @@ export default function App() {
                     </div>
                   </div>
                 );
+              })}
+
+              {/* Local Discovered Peers (Not Connected) */}
+              {discoveredPeers.map((peerId, index) => {
+                 const totalNodes = Math.max(1, connections.size + discoveredPeers.length);
+                 const angle = ((index + connections.size) * (360 / totalNodes)) * (Math.PI / 180);
+                 const distance = 30 + (Math.abs(peerId.charCodeAt(0) % 20)); // Keep outer ring
+              
+                 const xVal = 50 + (Math.cos(angle) * distance);
+                 const yVal = 50 + (Math.sin(angle) * distance);
+                 
+                 return (
+                     <div 
+                       key={`disc-${peerId}`} 
+                       onClick={() => {
+                          setConnectId(peerId);
+                          setShowConnectModal(true);
+                       }}
+                       className="absolute z-10 flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 cursor-pointer hover:scale-110 hover:z-20 group" 
+                       style={{ left: `${xVal}%`, top: `${yVal}%` }}
+                     >
+                       <div className="w-8 h-8 rounded-full border border-zinc-600 bg-zinc-900 border-dashed flex items-center justify-center text-sm opacity-60 group-hover:opacity-100 group-hover:border-emerald-500 hover:shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                         {generateAvatar(peerId)}
+                       </div>
+                       <div className="mt-1.5 px-2 py-0.5 rounded-full backdrop-blur-md text-[9px] font-bold bg-zinc-800 text-zinc-400 border border-zinc-700 opacity-60 group-hover:opacity-100 group-hover:text-emerald-400">
+                         {generateFoodName(peerId)} (Tap to Mesh)
+                       </div>
+                     </div>
+                 );
               })}
             </div>
             
@@ -1157,9 +1362,13 @@ export default function App() {
                           ? 'bg-emerald-600 text-white rounded-br-sm' 
                           : 'bg-zinc-800 text-zinc-100 rounded-bl-sm border border-zinc-700'}
                       `}>
-                        <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                          {highlightText(msg.text, searchQuery)}
-                        </p>
+                        {msg.type === 'audio' ? (
+                          <audio controls src={msg.text} className={`h-8 w-48 max-w-full ${msg.isMine ? '' : 'filter invert mix-blend-screen'}`} />
+                        ) : (
+                          <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                            {highlightText(msg.text, searchQuery)}
+                          </p>
+                        )}
                       </div>
                       
                       <button
@@ -1239,15 +1448,47 @@ export default function App() {
                 rows={1}
               />
             </div>
-            <button
-              type="submit"
-              disabled={!inputMessage.trim()}
-                  className="p-3 sm:p-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 rounded-xl transition-colors flex-shrink-0"
-            >
-              <Send className="w-5 h-5" />
-            </button>
+            {!inputMessage.trim() ? (
+              <button
+                type="button"
+                onClick={toggleRecording}
+                className={`p-3 sm:p-4 rounded-xl transition-colors flex-shrink-0 ${isRecording ? 'bg-rose-500 hover:bg-rose-400 text-white animate-pulse' : 'bg-zinc-800 hover:bg-zinc-700 text-emerald-400'}`}
+              >
+                {isRecording ? <Square className="w-5 h-5 fill-current" /> : <Mic className="w-5 h-5" />}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!inputMessage.trim()}
+                className="p-3 sm:p-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 rounded-xl transition-colors flex-shrink-0"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            )}
           </form>
         </div>
+        )}
+
+        {/* Pad Area */}
+        {activeTab === 'pad' && (
+          <div className="flex-1 w-full bg-zinc-950 overflow-hidden flex flex-col">
+             <SharedPad 
+               myId={myId}
+               roomHash={activeRoom}
+               incomingUpdates={incomingCRDT}
+               broadcastUpdate={(b64) => {
+                 const data = {
+                   type: 'crdt',
+                   update: b64,
+                   roomId: activeRoom,
+                   ttl: 7
+                 };
+                 connectionsRef.current.forEach(conn => {
+                    if (conn.open) conn.send(data);
+                 });
+               }}
+             />
+          </div>
         )}
       </div>
       </div>
@@ -1259,7 +1500,11 @@ export default function App() {
                 <MessageSquare className="w-6 h-6"/>
                 <span className="text-[10px] font-bold tracking-wider">MESSAGES</span>
             </button>
-            <button onClick={() => setActiveTab('radar')} className={`flex flex-col items-center gap-1 flex-1 py-2 ${activeTab === 'radar' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'}`}>
+            <button onClick={() => setActiveTab('pad')} className={`flex flex-col items-center gap-1 flex-1 py-2 ${activeTab === 'pad' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'}`}>
+                <FileText className="w-6 h-6"/>
+                <span className="text-[10px] font-bold tracking-wider">PAD</span>
+            </button>
+            <button onClick={() => setActiveTab('radar')} className={`hidden md:flex flex-col items-center gap-1 flex-1 py-2 ${activeTab === 'radar' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'}`}>
                 <Radar className="w-6 h-6"/>
                 <span className="text-[10px] font-bold tracking-wider">RADAR</span>
             </button>
@@ -1676,6 +1921,49 @@ export default function App() {
              </button>
            </div>
          </div>
+      )}
+
+      {/* Room Modal */}
+      {showRoomModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <button onClick={() => setShowRoomModal(false)} className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-full">
+              <X className="w-4 h-4" />
+            </button>
+            
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-full mx-auto flex items-center justify-center mb-4 border border-emerald-500/20">
+                <Hash className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-black text-white">Join Room</h2>
+              <p className="text-zinc-500 text-sm mt-1">Enter a secure topic hash</p>
+            </div>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const hashed = await hashRoomName(roomInput);
+              setActiveRoom(hashed);
+              setShowRoomModal(false);
+              setRoomInput('');
+            }} className="space-y-4">
+              <input 
+                 type="text"
+                 value={roomInput}
+                 onChange={(e) => setRoomInput(e.target.value)}
+                 placeholder="e.g. ProjectAlpha"
+                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                 autoFocus
+              />
+              <button 
+                type="submit"
+                disabled={!roomInput.trim()}
+                className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black rounded-xl transition-all disabled:opacity-50"
+              >
+                JOIN & HASH
+              </button>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
