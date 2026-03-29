@@ -27,6 +27,10 @@ interface MeshDB extends DBSchema {
     key: string;
     value: MeshMessage;
   };
+  messages: {
+    key: string;
+    value: any;
+  };
   friends: {
     key: string;
     value: FriendNode;
@@ -45,10 +49,13 @@ export const initDB = async () => {
   if (useMemoryFallback) return null;
   if (!dbPromise) {
     try {
-      dbPromise = openDB<MeshDB>('MeshPawDB', 2, {
-        upgrade(db, oldVersion) {
+      dbPromise = openDB<MeshDB>('MeshpawDB', 1, {
+        upgrade(db) {
           if (!db.objectStoreNames.contains('seenMessages')) {
             db.createObjectStore('seenMessages', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('messages')) {
+            db.createObjectStore('messages', { keyPath: 'id' });
           }
           if (!db.objectStoreNames.contains('queuedMessages')) {
             db.createObjectStore('queuedMessages', { keyPath: 'id' });
@@ -126,6 +133,47 @@ export const loadFriends = async (): Promise<FriendNode[]> => {
   const db = await initDB();
   if (!db) return memoryStore.friends;
   return db.getAll('friends');
+}
+
+// ==========================================
+// DATA MULE SYSTEM (Sneakernet Exports)
+// ==========================================
+
+export async function exportDataMule(): Promise<string> {
+  const db = await initDB();
+  let messages = [];
+  try { messages = await db.getAll('messages'); } catch(e){}
+  
+  const queued = await db.getAll('queuedMessages');
+  const friends = await db.getAll('friends');
+  
+  const payload = {
+    version: '1.0.0',
+    timestamp: Date.now(),
+    data: { messages, queued, friends }
+  };
+  
+  return JSON.stringify(payload);
+}
+
+export async function importDataMule(jsonString: string): Promise<boolean> {
+  try {
+    const payload = JSON.parse(jsonString);
+    if (!payload.data) return false;
+    
+    const db = await initDB();
+    const tx = db.transaction(['messages', 'queuedMessages', 'friends'], 'readwrite');
+    
+    for (const msg of (payload.data.messages || [])) await tx.objectStore('messages').put(msg);
+    for (const q of (payload.data.queued || [])) await tx.objectStore('queuedMessages').put(q);
+    for (const f of (payload.data.friends || [])) await tx.objectStore('friends').put(f);
+    
+    await tx.done;
+    return true;
+  } catch (e) {
+    console.error('Data Mule Import Failed:', e);
+    return false;
+  }
 };
 
 export const removeFriend = async (id: string) => {
