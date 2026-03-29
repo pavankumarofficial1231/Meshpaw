@@ -454,19 +454,22 @@ export default function App() {
       return;
     }
 
-    const conn = peer.connect(targetId);
+    const conn = peer.connect(targetId, { reliable: true });
     
-    // Add a timeout for connection
+    // Register all handlers BEFORE 'open' fires so nothing is missed
+    setupConnection(conn);
+
+    // Track timeout separately
     const timeout = setTimeout(() => {
       if (!connections.has(targetId)) {
-        setConnectionError('Connection timed out. Peer might be offline or STUN blocked.');
+        setConnectionError('Connection timed out. Make sure both devices are on the same network.');
         setIsConnecting(false);
       }
     }, 15000);
 
+    // Watch for open to update UI state
     conn.on('open', () => {
       clearTimeout(timeout);
-      setupConnection(conn);
       setShowConnectModal(false);
       setIsConnecting(false);
       setConnectId('');
@@ -475,7 +478,7 @@ export default function App() {
     conn.on('error', (err) => {
       clearTimeout(timeout);
       console.error('Conn error:', err);
-      setConnectionError('Failed to establish connection.');
+      setConnectionError('Failed to establish connection. Check the peer ID and try again.');
       setIsConnecting(false);
     });
   };
