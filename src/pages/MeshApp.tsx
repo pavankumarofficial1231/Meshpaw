@@ -43,7 +43,9 @@ import {
   RadioTower,
   PhoneCall,
   PhoneOff,
-  Layers
+  Layers,
+  MapPin,
+  Headset
 } from 'lucide-react';
 import { MeshCanvas } from '../components/MeshCanvas';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -852,6 +854,41 @@ export default function MeshApp() {
     }
   };
 
+  const sendLocationPing = async () => {
+    if (!navigator.geolocation) return alert("Location unsupported.");
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const text = `📍 [TACTICAL GPS DROP]\nCoordinates lock acquired:\nhttps://www.google.com/maps/search/?api=1&query=${pos.coords.latitude},${pos.coords.longitude}\nPrecision: ${Math.round(pos.coords.accuracy)}m`;
+      const messageId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
+      const timestamp = Date.now();
+      const { signature, signingPubKey } = signData(`${text}${myIdRef.current}${timestamp}`, keyPairRef.current?.secretKey || '');
+
+      const sendData = {
+        type: 'message', id: messageId, roomId: activeRoom, sourceId: myIdRef.current, destId: 'ALL', ttl: 7, text: text, timestamp: timestamp, signature, signingPubKey,
+        expiresAt: ephemeralSeconds > 0 ? timestamp + (ephemeralSeconds * 1000) : undefined
+      };
+      await markMessageSeen(messageId);
+      setMessages(prev => [...prev, { id: messageId, roomId: activeRoom, senderId: myIdRef.current || myId, text: text, timestamp: timestamp, isMine: true, isVerified: true, signingPubKey, reactions: {}, status: 'sent', expiresAt: sendData.expiresAt }]);
+      const activeConns = connectionsRef.current;
+      if (activeConns.size > 0) activeConns.forEach(conn => { if (conn.open) conn.send(sendData); });
+    }, () => alert("Location access denied."));
+  };
+
+  const joinAudioLounge = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setLocalStream(stream);
+      if (peerRef.current) {
+        connectionsRef.current.forEach(conn => {
+          if (conn.open) {
+            const call = peerRef.current.call(conn.peer, stream);
+            setupCallEventHandlers(call);
+          }
+        });
+        setActiveTab('video' as any);
+      }
+    } catch(err) { console.error('Failed', err); alert('Microphone access denied.'); }
+  };
+
   const toggleRecording = async () => {
     if (isRecording) {
       if (mediaRecorderRef.current) {
@@ -1279,10 +1316,21 @@ export default function MeshApp() {
 
             <div className="flex items-center gap-3">
               {activeRoom !== 'GLOBAL' && (
-                <div className="items-center bg-zinc-800/80 px-4 py-1.5 rounded-full border border-zinc-700 mx-2 text-xs hidden sm:flex">
-                  <span className="text-emerald-400 font-bold mr-1">#</span>
-                  <span className="text-zinc-200 font-mono">{activeRoom.substring(0, 10)}</span>
-                  <button onClick={() => setActiveRoom('GLOBAL')} className="ml-2 text-zinc-500 hover:text-rose-400 transition-colors"><X className="w-3 h-3" /></button>
+                <div className="flex items-center gap-2">
+                  <div className="items-center bg-zinc-800/80 px-4 py-1.5 rounded-full border border-zinc-700 mx-2 text-xs hidden sm:flex">
+                    <span className="text-emerald-400 font-bold mr-1">#</span>
+                    <span className="text-zinc-200 font-mono">{activeRoom.substring(0, 10)}</span>
+                    <button onClick={() => setActiveRoom('GLOBAL')} className="ml-2 text-zinc-500 hover:text-rose-400 transition-colors"><X className="w-3 h-3" /></button>
+                  </div>
+                  
+                  <button
+                    onClick={joinAudioLounge}
+                    className="flex items-center gap-2 bg-zinc-800 hover:bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-full border border-zinc-700 hover:border-emerald-500/50 transition-all font-mono text-xs shadow-lg"
+                    title="Initialize MESH Voice Server"
+                  >
+                    <Headset className="w-4 h-4 animate-pulse" />
+                    <span className="hidden lg:inline uppercase font-bold tracking-widest text-[10px]">MESH LOUNGE</span>
+                  </button>
                 </div>
               )}
               <button
@@ -1662,16 +1710,34 @@ export default function MeshApp() {
                     <div className="relative flex items-center">
                       <button
                         type="button"
-                        onClick={() => setEphemeralSeconds(s => s === 0 ? 30 : s === 30 ? 60 : 0)}
-                        className={`p-3 sm:p-4 rounded-xl transition-colors flex bg-zinc-800 hover:bg-zinc-700 ${ephemeralSeconds > 0 ? 'text-rose-400 border border-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.2)]' : 'text-zinc-400'}`}
-                        title="Self-Destruct Timer"
+                        onClick={() => setEphemeralSeconds(s => s === 0 ? 15 : s === 15 ? 30 : 0)}
+                        className={`p-3 sm:p-4 rounded-xl transition-all duration-300 flex bg-zinc-800 hover:bg-zinc-700 ${ephemeralSeconds > 0 ? 'text-rose-400 border border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.4)] animate-pulse' : 'text-zinc-400 border border-transparent'}`}
+                        title="Self-Destruct Protocol (TTL)"
                       >
                         <Timer className="w-5 h-5" />
                         {ephemeralSeconds > 0 && <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full pointer-events-none">{ephemeralSeconds}</span>}
                       </button>
                     </div>
 
-                    <label className="p-3 sm:p-4 rounded-xl transition-colors bg-zinc-800 hover:bg-zinc-700 text-zinc-400 cursor-pointer" title="Send P2P File">
+                    <button
+                      type="button"
+                      onClick={sendLocationPing}
+                      className="p-3 sm:p-4 rounded-xl transition-colors bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-blue-400"
+                      title="Drop TACTICAL GPS Ping"
+                    >
+                      <MapPin className="w-5 h-5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleRecording}
+                      className={`p-3 sm:p-4 rounded-xl transition-all ${isRecording ? 'bg-amber-500/20 text-amber-500 animate-pulse border border-amber-500/50' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                      title={isRecording ? "Transmitting Audio..." : "Transmit Audio Memo"}
+                    >
+                      <Mic className="w-5 h-5" />
+                    </button>
+
+                    <label className="p-3 sm:p-4 rounded-xl transition-colors bg-zinc-800 hover:bg-zinc-700 text-zinc-400 cursor-pointer" title="Deploy P2P Swarm File">
                       <Paperclip className="w-5 h-5" />
                       <input type="file" className="hidden" onChange={(e) => {
                         const file = e.target.files?.[0];
@@ -1679,30 +1745,42 @@ export default function MeshApp() {
                         const reader = new FileReader();
                         reader.onload = async (re) => {
                           const base64 = re.target?.result as string;
-                          const messageId = (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).substring(2, 9);
+
+                          const messageId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
                           const timestamp = Date.now();
                           const { signature, signingPubKey } = signData(`${base64}${myIdRef.current}${timestamp}`, keyPairRef.current?.secretKey || '');
 
                           const messageData = {
                             type: 'message',
                             payloadType: 'file',
+                            fileName: file.name,
                             id: messageId,
                             roomId: activeRoom,
                             sourceId: myIdRef.current,
                             destId: 'ALL',
                             ttl: 7,
                             text: base64,
-                            fileName: file.name,
                             timestamp: timestamp,
                             signature,
                             signingPubKey,
                             expiresAt: ephemeralSeconds > 0 ? timestamp + (ephemeralSeconds * 1000) : undefined
                           };
 
-                          setMessages(pv => [...pv, {
-                            id: messageId, roomId: activeRoom, senderId: myId, text: base64, timestamp,
-                            isMine: true, isVerified: true, signingPubKey, reactions: {}, status: 'sent',
-                            type: 'file', fileName: file.name, expiresAt: messageData.expiresAt
+                          await markMessageSeen(messageId);
+                          setMessages(prev => [...prev, {
+                            id: messageId,
+                            roomId: activeRoom,
+                            senderId: myIdRef.current || myId,
+                            text: base64,
+                            fileName: file.name,
+                            timestamp: timestamp,
+                            isMine: true,
+                            isVerified: true,
+                            signingPubKey,
+                            reactions: {},
+                            status: 'sent',
+                            type: 'file',
+                            expiresAt: messageData.expiresAt
                           }]);
 
                           connectionsRef.current.forEach(c => { if (c.open) c.send(messageData); });
