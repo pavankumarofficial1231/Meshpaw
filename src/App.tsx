@@ -1169,7 +1169,7 @@ export default function App() {
               </div>
               
               <div className="bg-white p-4 rounded-xl flex justify-center mb-6 relative">
-                <QRCodeSVG value={myId} size={200} level="M" aria-hidden="true" title="" />
+                <QRCodeSVG value={myId} size={250} level="L" includeMargin={true} aria-hidden="true" title="" />
                 {/* Overlay to block browser long-press tooltips on mobile SVG titles */}
                 <div className="absolute inset-0 z-10"></div>
               </div>
