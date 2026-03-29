@@ -212,6 +212,8 @@ export default function App() {
     }
     
     setKeyPair(keys);
+    keyPairRef.current = keys;
+    
     // Your Address is derived from your Public Key
     // Aggressively sanitize for PeerJS strictness: alphanumeric, -, _ ONLY
     const rawBase64 = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
