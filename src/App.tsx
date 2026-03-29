@@ -93,6 +93,7 @@ export default function App() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeReactionMsg, setActiveReactionMsg] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -234,7 +235,11 @@ export default function App() {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' }
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          { urls: 'stun:stun.services.mozilla.com' },
+          { urls: 'stun:stun.node.com:3478' }
         ]
       }
     });
@@ -913,7 +918,8 @@ export default function App() {
                 <span className="text-xs font-medium hidden lg:inline">Search</span>
               </button>
               
-              <div className="hidden md:flex items-center gap-3">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setShowSettings(true)} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-full transition-colors"><Settings className="w-5 h-5"/></button>
                 <button 
                   onClick={() => setShowQrModal(true)} 
                   className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-full transition-colors flex items-center gap-2"
@@ -921,17 +927,6 @@ export default function App() {
                 >
                   <QrCode className="w-5 h-5" />
                   <span className="text-xs font-medium hidden lg:inline">My QR</span>
-                </button>
-              </div>
-              
-              <div className="flex items-center gap-3 md:hidden">
-                <div className="font-mono text-xs font-bold bg-zinc-800 px-2 py-1 rounded max-w-[120px] truncate">{myId ? `${myId.substring(0, 10)}...` : '---'}</div>
-                <button 
-                  onClick={() => setShowQrModal(true)} 
-                  className="p-2 text-zinc-400 hover:text-white"
-                  title="My QR Code"
-                >
-                  <QrCode className="w-5 h-5" />
                 </button>
               </div>
             </div>
