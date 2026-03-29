@@ -197,12 +197,22 @@ export default function App() {
     // Every device connects directly to PeerServer on port 9000.
     // PeerServer binds to all interfaces (::), so both laptop (localhost:9000)
     // and phone (192.168.x.x:9000) reach the SAME server process.
+    // CRITICAL: must include iceServers — custom host strips PeerJS defaults,
+    // causing only mDNS candidates which phones cannot resolve → timeout.
     const newPeer = new Peer(peerId, {
       host: window.location.hostname,
       port: 9000,
       path: '/myapp',
       secure: false,
       debug: 0,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+        ]
+      }
     });
 
 
