@@ -193,31 +193,21 @@ export default function App() {
     const peerId = `mp-${base64Safe}-t`;
     
     setStatus('connecting');
-    
-    // Auto-detect if we are on a true off-grid local network (e.g. localhost, typical hotspot IPs)
-    const hostname = window.location.hostname;
-    const isLocalMesh = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
-    
-    const peerConfig = isLocalMesh ? {
-      host: hostname,
-      port: 9000,
-      path: '/myapp',
-      secure: window.location.protocol === 'https:',
-      debug: 2,
-      config: {
-        iceServers: [] // Force local LAN host candidates only, bypass STUN hang when offline
-      }
-    } : {
-      debug: 2,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' }
-        ]
-      }
-    };
 
-    const newPeer = new Peer(peerId, peerConfig);
+    // Use local PeerServer if on LAN, otherwise use PeerJS cloud
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' 
+      || hostname.startsWith('192.168.') || hostname.startsWith('10.') 
+      || hostname.startsWith('172.');
+
+    const newPeer = isLocal
+      ? new Peer(peerId, {
+          host: hostname,
+          port: 9000,
+          path: '/myapp',
+          debug: 1
+        })
+      : new Peer(peerId, { debug: 1 });
 
     newPeer.on('open', (id) => {
       setMyId(id);
@@ -442,44 +432,41 @@ export default function App() {
     e.preventDefault();
     if (!peer || !connectId.trim() || connectId === myId) return;
     
-    setIsConnecting(true);
-    setConnectionError(null);
-
     const targetId = connectId.trim();
     
     if (connections.has(targetId)) {
       setShowConnectModal(false);
-      setIsConnecting(false);
       setConnectId('');
+      setConnectionError(null);
       return;
     }
 
+    setIsConnecting(true);
+    setConnectionError(null);
+
     const conn = peer.connect(targetId, { reliable: true });
-    
-    // Register all handlers BEFORE 'open' fires so nothing is missed
     setupConnection(conn);
 
-    // Track timeout separately
-    const timeout = setTimeout(() => {
-      if (!connections.has(targetId)) {
-        setConnectionError('Connection timed out. Make sure both devices are on the same network.');
-        setIsConnecting(false);
+    const connectTimeout = setTimeout(() => {
+      setIsConnecting(false);
+      // Check if established by peeking at conn directly
+      if (!conn.open) {
+        setConnectionError('Timed out. Check the ID and that both devices are on the same network.');
       }
     }, 15000);
 
-    // Watch for open to update UI state
     conn.on('open', () => {
-      clearTimeout(timeout);
-      setShowConnectModal(false);
+      clearTimeout(connectTimeout);
       setIsConnecting(false);
+      setConnectionError(null);
+      setShowConnectModal(false);
       setConnectId('');
     });
 
-    conn.on('error', (err) => {
-      clearTimeout(timeout);
-      console.error('Conn error:', err);
-      setConnectionError('Failed to establish connection. Check the peer ID and try again.');
+    conn.on('error', (err: any) => {
+      clearTimeout(connectTimeout);
       setIsConnecting(false);
+      setConnectionError(`Error: ${err.type || err.message || 'Unknown error'}. Check the peer ID.`);
     });
   };
 
@@ -1193,9 +1180,22 @@ export default function App() {
                 <div className="mb-6 rounded-xl overflow-hidden border border-zinc-800 bg-black max-h-[250px] relative">
                   <Scanner onScan={(result) => {
                     const scannedId = result?.[0]?.rawValue;
-                    if (scannedId && scannedId.length > 20) {
+                    if (scannedId && scannedId.length > 20 && peer) {
                       setConnectId(scannedId);
                       setShowScanner(false);
+                      // Auto-connect immediately after scan
+                      if (!connections.has(scannedId) && scannedId !== myId) {
+                        setIsConnecting(true);
+                        setConnectionError(null);
+                        const conn = peer.connect(scannedId, { reliable: true });
+                        setupConnection(conn);
+                        const t = setTimeout(() => {
+                          setIsConnecting(false);
+                          if (!conn.open) setConnectionError('QR connect timed out. Try manual ID entry.');
+                        }, 15000);
+                        conn.on('open', () => { clearTimeout(t); setIsConnecting(false); setShowConnectModal(false); setConnectId(''); });
+                        conn.on('error', (err: any) => { clearTimeout(t); setIsConnecting(false); setConnectionError(`QR Error: ${err.type || 'failed'}`); });
+                      }
                     }
                   }} />
                   <div className="absolute font-mono text-center w-full bottom-2 left-0 text-emerald-400 text-xs bg-black/50 py-1">Scanning Crypto ID...</div>
