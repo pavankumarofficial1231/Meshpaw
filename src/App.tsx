@@ -194,16 +194,15 @@ export default function App() {
     
     setStatus('connecting');
 
-    // Every device connects directly to PeerServer on port 9000.
-    // PeerServer binds to all interfaces (::), so both laptop (localhost:9000)
-    // and phone (192.168.x.x:9000) reach the SAME server process.
-    // CRITICAL: must include iceServers — custom host strips PeerJS defaults,
-    // causing only mDNS candidates which phones cannot resolve → timeout.
+    // For local dev, Vite is on 3000 and PeerJS on 9000. For production, Server.js runs both on the same port!
+    const isLocalDev = window.location.port === '3000' || window.location.port === '5173';
+    const peerPort = isLocalDev ? 9000 : (window.location.port ? Number(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80));
+
     const newPeer = new Peer(peerId, {
       host: window.location.hostname,
-      port: 9000,
+      port: peerPort,
       path: '/myapp',
-      secure: false,
+      secure: window.location.protocol === 'https:',
       debug: 0,
       config: {
         iceServers: [] // Empty array forces local-only (host) candidates, removing reliance on cloud STUN.
