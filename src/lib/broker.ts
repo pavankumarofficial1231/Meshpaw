@@ -1,6 +1,7 @@
 /**
  * PeerJS Broker Resolution Logic
  * This module decides where to find the signaling server based on the environment.
+ * Version: 1.8.0
  */
 
 export interface BrokerConfig {
@@ -37,15 +38,26 @@ export const resolveBroker = (forceCloud: boolean): BrokerConfig => {
     };
   }
 
-  // 4. LAN / Hotspot Access (e.g. 192.168.1.5:9001)
-  // If we are NOT on localhost and NOT on a cloud domain, we are likely on a LAN node.
-  // We try to find the signaling server on the CURRENT host.
+  // 4. LAN / Hotspot Access (e.g. 192.168.x.x)
+  // If we accessed the app via a local IP, the signaling server is likely on THIS host.
+  // We prioritize Port 9000 (Standard Mesh Broker) then the current port.
+  if (hostname.match(/^(\d{1,3}\.){3}\d{1,3}$/)) {
+    return {
+      host: hostname,
+      port: 9000, // Priority for signaling
+      path: '/peerjs',
+      secure: isHttps,
+      debug: 3
+    };
+  }
+
   if (port) {
     return {
       host: hostname,
-      port: Number(port), // PeerJS server usually runs on the same port as the app in production
+      port: Number(port),
       path: '/peerjs',
-      secure: isHttps
+      secure: isHttps,
+      debug: 3
     };
   }
 
