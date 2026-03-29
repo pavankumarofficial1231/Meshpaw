@@ -28,6 +28,7 @@ import {
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { generateKeys, KeyPair, signData, verifyData } from './lib/crypto';
 import { hasSeenMessage, markMessageSeen, queueMessage, getQueuedMessages, removeQueuedMessage, loadFriends, saveFriend, removeFriend, FriendNode } from './lib/store';
+import { resolveBroker } from './lib/broker';
 
 // Types
 interface Message {
@@ -218,31 +219,20 @@ export default function App() {
     }
     
     setKeyPair(keys);
-    keyPairRef.current = keys;
-
     // Your Address is derived from your Public Key
     // Aggressively sanitize for PeerJS strictness: alphanumeric, -, _ ONLY
     const rawBase64 = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    const peerId = `mp-${rawBase64.replace(/[^a-zA-Z0-9\-_]/g, '')}`; 
+    const baseId = `mp-${rawBase64.replace(/[^a-zA-Z0-9\-_]/g, '')}`; 
+    
+    // Identity collision correction (if needed)
+    const peerId = nonce > 0 ? `${baseId}-${nonce}` : baseId;
     
     setStatus('connecting');
 
-    // For local dev, Vite is on 3000 and PeerJS on 9000. For production, Server.js runs both on the same port!
-    const isLocalDev = window.location.port === '3000' || window.location.port === '5173';
-    const isVercel = window.location.hostname.includes('vercel.app') || forceCloud;
-    
-    // For local dev, use manual port. For Vercel, Use PeerJS Cloud (default)
-    const peerConfig = (isLocalDev || window.location.hostname === 'localhost') && !forceCloud ? {
-      host: window.location.hostname,
-      port: isLocalDev ? 9000 : Number(window.location.port),
-      path: '/peerjs',
-      secure: window.location.protocol === 'https:',
-    } : {
-      key: 'peerjs',
-      debug: 3
-    };
+    const peerConfig = resolveBroker(forceCloud);
+    const isCloud = !!peerConfig.key;
 
-    console.log(`[Mesh] Initializing node in ${isVercel ? 'Cloud' : 'Local'} mode`);
+    console.log(`[Mesh] Initializing node in ${isCloud ? 'Cloud' : 'Local'} mode`);
 
     const newPeer = new Peer(peerId, {
       ...peerConfig,
@@ -262,7 +252,7 @@ export default function App() {
       setMyId(id);
       setStatus('connected');
       addLog(`Signaling OK. ID: ${id}`);
-      addLog(`Broker: ${isVercel ? 'PeerJS Cloud' : 'Local Mesh'}`);
+      addLog(`Broker: ${isCloud ? 'PeerJS Cloud' : 'Local Mesh'}`);
     });
 
     newPeer.on('connection', (conn) => {
@@ -277,7 +267,9 @@ export default function App() {
       
       if (type === 'invalid-id' || type === 'unavailable-id') {
         setStatus('disconnected');
-        setConnectionError('Identity rejected by mesh. Refreshing keys...');
+        setConnectionError('Identity rejected. Attempting repair...');
+        // Increment nonce to force re-init with a suffix
+        setTimeout(() => setNonce(prev => prev + 1), 2000);
       }
     });
 
@@ -1296,7 +1288,19 @@ export default function App() {
               </div>
               
               <div className="bg-white p-4 rounded-xl flex justify-center mb-6 relative">
-                <QRCodeSVG value={myId} size={250} level="L" includeMargin={true} aria-hidden="true" title="" />
+                {myId && (
+                  <QRCodeSVG 
+                    value={JSON.stringify({
+                      id: myId,
+                      alias: generateFoodName(myId),
+                      pub: keyPair?.publicKey,
+                      ver: 1
+                    })} 
+                    size={250} 
+                    level="L" 
+                    includeMargin={true} 
+                  />
+                )}
                 {/* Overlay to block browser long-press tooltips on mobile SVG titles */}
                 <div className="absolute inset-0 z-10"></div>
               </div>
