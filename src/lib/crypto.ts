@@ -1,6 +1,17 @@
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 
+// Fix for Brave/Chrome on insecure origins (HTTP) where window.crypto is unavailable.
+// This prevents nacl from failing to generate keys.
+if (typeof window !== 'undefined' && (!window.crypto || !window.crypto.getRandomValues)) {
+  console.warn('[Mesh Security] window.crypto not found. Falling back to Math.random (reduced security)');
+  nacl.setPRNG((x, n) => {
+    for (let i = 0; i < n; i++) {
+        x[i] = Math.floor(Math.random() * 256);
+    }
+  });
+}
+
 export interface KeyPair {
   publicKey: string;
   secretKey: string;

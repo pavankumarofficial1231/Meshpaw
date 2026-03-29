@@ -102,6 +102,13 @@ export default function App() {
   const [viewPeerInfo, setViewPeerInfo] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  
+  const addLog = (msg: string) => {
+    console.log(`[Mesh Log] ${msg}`);
+    const time = new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' });
+    setDebugLogs(prev => [`[${time}] ${msg}`, ...prev].slice(0, 50));
+  };
   
   // Database State
   const [friends, setFriends] = useState<FriendNode[]>([]);
@@ -110,7 +117,14 @@ export default function App() {
 
   // Load Friends from DB
   useEffect(() => {
-    loadFriends().then(setFriends);
+    loadFriends()
+      .then(f => {
+        setFriends(f);
+        addLog(`DB Connected: ${f.length} peers saved.`);
+      })
+      .catch(err => {
+        addLog(`ERR: Database Blocked. Check browser shields.`);
+      });
   }, []);
 
   const toggleFriend = async (peerId: string) => {
@@ -184,18 +198,22 @@ export default function App() {
     // 1. Identity Layer: Cryptographic Key Generation
     const savedKeys = localStorage.getItem('meshpaw_keys');
     let keys: KeyPair;
-    if (savedKeys) {
-      keys = JSON.parse(savedKeys);
-    } else {
-      keys = generateKeys();
-      localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
+    try {
+      if (savedKeys) {
+        keys = JSON.parse(savedKeys);
+        addLog(`Keys Loaded: ${keys.publicKey.substring(0, 10)}...`);
+      } else {
+        keys = generateKeys();
+        localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
+        addLog(`New Identity Forged.`);
+      }
+    } catch (e) {
+      addLog(`ERR: Cryptography fail. Browser blocks window.crypto?`);
+      return;
     }
+    
     setKeyPair(keys);
-
-    // Your Address is derived from your Public Key
-    // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
     keyPairRef.current = keys;
-    setKeyPair(keys);
 
     // Your Address is derived from your Public Key
     // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
@@ -209,10 +227,12 @@ export default function App() {
     const isLocalDev = window.location.port === '3000' || window.location.port === '5173';
     const peerPort = isLocalDev ? 9000 : (window.location.port ? Number(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80));
 
+    console.log(`[Mesh] Initializing node on ${window.location.hostname}:${peerPort}/peerjs`);
+
     const newPeer = new Peer(peerId, {
       host: window.location.hostname,
       port: peerPort,
-      path: '/myapp',
+      path: '/peerjs', // Explicit standardized path
       secure: window.location.protocol === 'https:',
       debug: 3, 
       pingInterval: 3000, 
@@ -220,8 +240,7 @@ export default function App() {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' }
+          { urls: 'stun:stun2.l.google.com:19302' }
         ]
       }
     });
@@ -231,17 +250,24 @@ export default function App() {
       myIdRef.current = id;
       setMyId(id);
       setStatus('connected');
+      addLog(`Signaling OK. ID: ${id}`);
     });
 
     newPeer.on('connection', (conn) => {
-      console.log(`[Mesh] Incoming connection from: ${conn.peer}`);
+      addLog(`Incoming link: ${conn.peer}`);
       setupConnection(conn);
     });
 
     newPeer.on('error', (err) => {
-      console.error('PeerJS node error:', err);
-      if (err.type === 'network' || err.type === 'server-error' || err.type === 'unavailable-id') {
+      addLog(`ERR: ${err.type} - ${err.message || 'Check terminal'}`);
+      console.error('PeerJS Node Logic Error:', err);
+      if (err.type === 'peer-unavailable') {
+        setConnectionError(`Node not found on this mesh.`);
+      } else if (err.type === 'unavailable-id') {
         setStatus('disconnected');
+        setConnectionError('Identity collision. Refreshing...');
+      } else {
+        setConnectionError(`Mesh Error: ${err.type}`);
       }
     });
 
@@ -644,6 +670,31 @@ export default function App() {
                 <PawPrint className="w-5 h-5" />
                 <span>MeshPaw Base</span>
               </div>
+            </div>
+
+            {/* Mesh Sidebar Navigation (Desktop) */}
+            <div className="p-2 space-y-1 mt-2">
+              <button 
+                onClick={() => setActiveTab('chat')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'chat' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="text-sm font-semibold">Messages</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('radar')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'radar' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <Radar className="w-4 h-4" />
+                <span className="text-sm font-semibold">Mesh Radar</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('peers')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === 'peers' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+              >
+                <Users className="w-4 h-4" />
+                <span className="text-sm font-semibold">Address Book</span>
+              </button>
             </div>
           
           <div className="p-4 border-b border-zinc-800">
@@ -1414,6 +1465,22 @@ export default function App() {
           )}
         </div>
       )}
+      
+      {/* Mesh Debug Console (Mobile/Desktop Visibility Toggle) */}
+      <div className="fixed bottom-20 left-4 right-4 md:left-auto md:right-4 md:bottom-4 md:w-80 h-48 bg-black/90 border border-zinc-800 rounded-xl z-50 overflow-hidden flex flex-col shadow-2xl backdrop-blur-md">
+        <div className="p-2 border-b border-zinc-800 bg-zinc-900 flex justify-between items-center text-[10px] uppercase font-bold text-zinc-500">
+           <span>Mesh Activity Monitor</span>
+           <button onClick={() => setDebugLogs([])} className="hover:text-white">Clear</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 font-mono text-[10px] space-y-1">
+          {debugLogs.length === 0 && <div className="text-zinc-600 italic">Waiting for connection pulse...</div>}
+          {debugLogs.map((log, i) => (
+            <div key={i} className={log.includes('ERR') ? 'text-red-400' : log.includes('OK') ? 'text-emerald-400' : 'text-zinc-400'}>
+              {log}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

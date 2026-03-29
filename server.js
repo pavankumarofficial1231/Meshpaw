@@ -16,13 +16,13 @@ app.use(express.static(path.join(__dirname, 'dist')));
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`MeshPaw Server running at:`);
-  console.log(`- Local: http://localhost:${PORT}`);
-  console.log(`- Mesh Base: /myapp`);
+  console.log(`[Signaling] Mesh broker live at: http://0.0.0.0:${PORT}/peerjs`);
+  console.log(`[Web] App interface: http://localhost:${PORT}`);
 });
 
 // Setup PeerJS Server
 const peerServer = ExpressPeerServer(server, {
-  path: '/myapp',
+  path: '/',
   allow_discovery: true,
   proxied: true
 });
@@ -35,7 +35,7 @@ peerServer.on('disconnect', (client) => {
   console.log(`[Mesh] Client Disconnected: ${client.getId()}`);
 });
 
-app.use(peerServer);
+app.use('/peerjs', peerServer);
 
 // Handles any requests that don't match the ones above
 app.get('*', (req, res) => {
