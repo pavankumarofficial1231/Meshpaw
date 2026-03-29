@@ -76,10 +76,15 @@ export default function App() {
   const [peer, setPeer] = useState<Peer | null>(null);
   const [connections, setConnections] = useState<Map<string, DataConnection>>(new Map());
   const [peerStats, setPeerStats] = useState<Map<string, PeerStat>>(new Map());
+  const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
+  const statsRef = useRef<Map<string, PeerStat>>(new Map());
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [connectId, setConnectId] = useState('');
   const [keyPair, setKeyPair] = useState<KeyPair | null>(null);
+  const keyPairRef = useRef<KeyPair | null>(null);
+  const myIdRef = useRef<string>('');
   
   // UI States
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -189,8 +194,14 @@ export default function App() {
 
     // Your Address is derived from your Public Key
     // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
+    keyPairRef.current = keys;
+    setKeyPair(keys);
+
+    // Your Address is derived from your Public Key
+    // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
     const base64Safe = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    const peerId = `mp-${base64Safe}-t`;
+    const sessionRand = Math.random().toString(36).substring(2, 6);
+    const peerId = `mp-${base64Safe}-${sessionRand}`;
     
     setStatus('connecting');
 
@@ -203,36 +214,42 @@ export default function App() {
       port: peerPort,
       path: '/myapp',
       secure: window.location.protocol === 'https:',
-      debug: 3, // Full verbose logs to help the user solve connection stalls
-      pingInterval: 3000, // Keep-alive heartbeat every 3 seconds
+      debug: 3, 
+      pingInterval: 3000, 
       config: {
-        iceServers: [] // Off-grid/LAN mode
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' }
+        ]
       }
     });
 
 
     newPeer.on('open', (id) => {
+      myIdRef.current = id;
       setMyId(id);
       setStatus('connected');
     });
 
     newPeer.on('connection', (conn) => {
+      console.log(`[Mesh] Incoming connection from: ${conn.peer}`);
       setupConnection(conn);
     });
 
     newPeer.on('error', (err) => {
-      console.error('PeerJS error:', err);
-      if (err.type === 'network' || err.type === 'server-error') {
+      console.error('PeerJS node error:', err);
+      if (err.type === 'network' || err.type === 'server-error' || err.type === 'unavailable-id') {
         setStatus('disconnected');
       }
     });
 
     newPeer.on('disconnected', () => {
       setStatus('disconnected');
-      // If we got violently disconnected but still have the object, try reconnecting
       setTimeout(() => {
         if (!newPeer.destroyed) {
-          console.log("Attempting to reconnect to Mesh signaling server...");
+          console.log("[Mesh] Reconnecting to broker...");
           newPeer.reconnect();
           setStatus('connecting');
         }
@@ -249,14 +266,14 @@ export default function App() {
   // Store-and-Forward Flusher
   useEffect(() => {
     const queueInterval = setInterval(async () => {
-      // If we have active connections, check if there are any offline messages waiting in the database
-      if (connections.size === 0) return;
+      const activeConns = connectionsRef.current;
+      if (activeConns.size === 0) return;
       
       try {
         const queued = await getQueuedMessages();
         if (queued.length === 0) return;
 
-        console.log(`Flushing ${queued.length} queued messages to mesh...`);
+        console.log(`[Mesh] Flushing ${queued.length} items...`);
         for (const msg of queued) {
           let sentAny = false;
           const messageData = {
@@ -268,14 +285,13 @@ export default function App() {
             ttl: msg.ttl
           };
 
-          connections.forEach(conn => {
+          activeConns.forEach(conn => {
             if (conn.open) {
               conn.send(messageData);
               sentAny = true;
             }
           });
 
-          // Remove from local queue once it's out in the wild
           if (sentAny) {
             await removeQueuedMessage(msg.id);
           }
@@ -283,37 +299,31 @@ export default function App() {
       } catch (err) {
         console.error('Queue flush failed:', err);
       }
-    }, 5000); // Check every 5 seconds
+    }, 5000);
     
     return () => clearInterval(queueInterval);
-  }, [connections]);
+  }, []);
 
   // Ping interval
   useEffect(() => {
     const interval = setInterval(() => {
-      connections.forEach(conn => {
+      connectionsRef.current.forEach(conn => {
         if (conn.open) {
           conn.send({ type: 'ping', timestamp: Date.now() });
         }
       });
     }, 3000);
     return () => clearInterval(interval);
-  }, [connections]);
+  }, []);
 
   const setupConnection = (conn: DataConnection) => {
     const handleOpen = async () => {
-      setConnections(prev => {
-        const newMap = new Map(prev);
-        newMap.set(conn.peer, conn);
-        return newMap;
-      });
-      setPeerStats(prev => {
-        const newMap = new Map(prev);
-        newMap.set(conn.peer, { latency: 0, lastSeen: Date.now() });
-        return newMap;
-      });
+      statsRef.current.set(conn.peer, { latency: 0, lastSeen: Date.now() });
+      connectionsRef.current.set(conn.peer, conn);
       
-      // Verify if new connection relies on permanent trust
+      setConnections(new Map(connectionsRef.current));
+      setPeerStats(new Map(statsRef.current));
+      
       const currentFriends = await loadFriends();
       if (!currentFriends.some(f => f.id === conn.peer)) {
         setPendingPeerPrompt(conn.peer);
@@ -380,7 +390,7 @@ export default function App() {
         const ttl = typeof data.ttl === 'number' ? data.ttl : 7; // Default 7 hops
         if (ttl > 1) {
           const forwardedData = { ...data, ttl: ttl - 1 };
-          connections.forEach(forwardConn => {
+          connectionsRef.current.forEach(forwardConn => {
             if (forwardConn.open && forwardConn.peer !== conn.peer) {
               forwardConn.send(forwardedData);
             }
@@ -493,19 +503,20 @@ export default function App() {
     if (!inputMessage.trim()) return;
 
     // Packet Structure
+    const text = inputMessage.trim();
     const messageId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
     const timestamp = Date.now();
     
     // Sign the message (using the exact same values as the packet)
-    const { signature, signingPubKey } = signData(`${inputMessage.trim()}${myId}${timestamp}`, keyPair?.secretKey || '');
+    const { signature, signingPubKey } = signData(`${text}${myIdRef.current}${timestamp}`, keyPairRef.current?.secretKey || '');
 
     const messageData = {
       type: 'message',
       id: messageId,
-      sourceId: myId,  // Source ID
+      sourceId: myIdRef.current,  // Source ID
       destId: 'ALL',   // Target ID
       ttl: 7,          // Time to Live (7 hops)
-      text: inputMessage.trim(),
+      text: text,
       timestamp: timestamp,
       signature,
       signingPubKey
@@ -527,23 +538,23 @@ export default function App() {
     }]);
 
     // Send to all connected peers
-    if (connections.size > 0) {
-      connections.forEach(conn => {
+    const activeConns = connectionsRef.current;
+    if (activeConns.size > 0) {
+      activeConns.forEach(conn => {
         if (conn.open) {
           conn.send(messageData);
         }
       });
     } else {
-      // Store-and-Forward SQLite/IndexedDB approach
-      // If no one is around, store it!
+      // Offline mode: Queue for the future forward
       await queueMessage({
-        id: messageData.id,
-        sourceId: messageData.sourceId,
-        destId: messageData.destId,
-        seqId: 1,
-        ttl: messageData.ttl,
-        payload: messageData.text,
-        timestamp: messageData.timestamp
+        id: messageId,
+        sourceId: myIdRef.current,
+        destId: 'ALL',
+        seqId: 0,
+        ttl: 7,
+        payload: inputMessage.trim(),
+        timestamp: timestamp
       });
     }
 
@@ -593,13 +604,13 @@ export default function App() {
       };
 
       // Broadcast
-      connections.forEach(conn => {
+      connectionsRef.current.forEach(conn => {
         if (conn.open) {
           conn.send({
             type: 'reaction',
             messageId,
             emoji,
-            senderId: myId,
+            senderId: myIdRef.current,
             isAdding
           });
         }
@@ -614,8 +625,8 @@ export default function App() {
     msg.text.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const avgLatency = connections.size > 0 
-    ? Math.round(Array.from(peerStats.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + stat.latency, 0) / connections.size)
+  const avgLatency = connectionsRef.current.size > 0 
+    ? Math.round(Array.from(statsRef.current.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + stat.latency, 0) / connectionsRef.current.size)
     : 0;
 
   return (
