@@ -14,17 +14,21 @@ import {
   QrCode, 
   Plus, 
   X,
-  PawPrint,
-  Menu,
   MessageSquare,
   Search,
   SmilePlus,
   Download,
-  ScanLine,
   Radar,
-  Star,
-  ShieldCheck
+  ShieldCheck,
+  Settings,
+  Trash2,
+  Shield,
+  Zap,
+  Activity,
+  ChevronRight,
+  UserPlus
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { generateKeys, KeyPair, signData, verifyData } from './lib/crypto';
 import { hasSeenMessage, markMessageSeen, queueMessage, getQueuedMessages, removeQueuedMessage, loadFriends, saveFriend, removeFriend, FriendNode } from './lib/store';
@@ -49,27 +53,7 @@ interface PeerStat {
 const ADJECTIVES = ['Sugary', 'Spicy', 'Crispy', 'Crunchy', 'Salty', 'Sweet', 'Sour', 'Toasted', 'Glazed', 'Fried', 'Cheesy', 'Melted', 'Jolly', 'Sizzling', 'Buttery', 'Frosted', 'Sticky', 'Gooey', 'Bubbly', 'Zesty'];
 const NOUNS = ['Bites', 'Tacos', 'Pickles', 'Donuts', 'Bacon', 'Noodles', 'Waffles', 'Burgers', 'Pancakes', 'Burritos', 'Sushi', 'Muffins', 'Biscuits', 'Cookies', 'Pretzels', 'Cupcakes', 'Fries', 'Snacks', 'Nuggets', 'Pizzas'];
 const AVATARS = ['🐶', '😸', '🐼', '🦊', '🐷', '🐸', '🦄', '👾', '👻', '🍕'];
-
-const generateFoodName = (id: string) => {
-  if (!id) return 'Unknown Food';
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const adjIndex = Math.abs(hash) % ADJECTIVES.length;
-  const nounIndex = Math.abs(hash * 3) % NOUNS.length;
-  
-  return `${ADJECTIVES[adjIndex]} ${NOUNS[nounIndex]}`;
-};
-
-const generateAvatar = (id: string) => {
-  if (!id) return '👽';
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATARS[Math.abs(hash) % AVATARS.length];
-};
+const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 export default function App() {
   const [myId, setMyId] = useState<string>('');
@@ -81,6 +65,20 @@ export default function App() {
   const [connectId, setConnectId] = useState('');
   const [keyPair, setKeyPair] = useState<KeyPair | null>(null);
   
+  // Identity & Onboarding State
+  const [alias, setAlias] = useState<string>(localStorage.getItem('mesh_alias') || '');
+  const [signalSignature, setSignalSignature] = useState<string>(localStorage.getItem('mesh_signature') || '⚡');
+  const [isOnboarded, setIsOnboarded] = useState<boolean>(!!localStorage.getItem('mesh_alias'));
+  
+  // Discovery & Database State
+  const [friends, setFriends] = useState<FriendNode[]>([]);
+  const [discoveredPeers, setDiscoveredPeers] = useState<string[]>([]);
+  
+  // Metrics State
+  const [relayedCount, setRelayedCount] = useState<number>(Number(localStorage.getItem('mesh_relayed')) || 0);
+  const [startTime] = useState<number>(Date.now());
+  const [isRelayEnabled, setIsRelayEnabled] = useState<boolean>(localStorage.getItem('mesh_relay_enabled') !== 'false');
+  
   // UI States
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [showQrModal, setShowQrModal] = useState(false);
@@ -88,40 +86,36 @@ export default function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeReactionMsg, setActiveReactionMsg] = useState<string | null>(null);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [hasDismissedInstall, setHasDismissedInstall] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'radar' | 'peers'>('chat');
+  const [activeTab, setActiveTab] = useState<'chats' | 'discovery' | 'settings'>('chats');
   const [pendingPeerPrompt, setPendingPeerPrompt] = useState<string | null>(null);
-  const [viewPeerInfo, setViewPeerInfo] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  
-  // Database State
-  const [friends, setFriends] = useState<FriendNode[]>([]);
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load Friends from DB
-  useEffect(() => {
-    loadFriends().then(setFriends);
-  }, []);
+  // --- HELPERS ---
 
-  const toggleFriend = async (peerId: string) => {
-    const isFriend = friends.find(f => f.id === peerId);
-    if (isFriend) {
-      await removeFriend(peerId);
-      setFriends(prev => prev.filter(f => f.id !== peerId));
-    } else {
-      const newFriend: FriendNode = {
-        id: peerId,
-        name: generateFoodName(peerId),
-        addedAt: Date.now()
-      };
-      await saveFriend(newFriend);
-      setFriends(prev => [...prev, newFriend]);
+  const generateFoodName = (id: string, isMe = false) => {
+    if (isMe && alias) return alias;
+    if (!id) return 'Unknown Node';
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
     }
+    const adjIndex = Math.abs(hash) % ADJECTIVES.length;
+    const nounIndex = Math.abs(hash * 3) % NOUNS.length;
+    return `${ADJECTIVES[adjIndex]} ${NOUNS[nounIndex]}`;
+  };
+
+  const generateAvatar = (id: string, isMe = false) => {
+    if (isMe && signalSignature) return signalSignature;
+    if (!id) return '👽';
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return AVATARS[Math.abs(hash) % AVATARS.length];
   };
 
   const getDisplayName = (id: string, excludeFriendName = false) => {
@@ -133,68 +127,46 @@ export default function App() {
     return generateFoodName(id);
   };
 
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallPrompt(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setShowInstallPrompt(false);
-    }
-    setDeferredPrompt(null);
+  const formatTime = (ts: number) => {
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const dismissInstall = () => {
-    setShowInstallPrompt(false);
-    setHasDismissedInstall(true);
+  const highlightText = (text: string, highlight: string) => {
+    if (!highlight.trim()) return text;
+    const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
+    return parts.map((part, i) => 
+      part.toLowerCase() === highlight.toLowerCase() ? 
+        <span key={i} className="bg-emerald-500/40 text-emerald-100 rounded-sm px-0.5">{part}</span> : part
+    );
   };
 
-  // Request Notification Permissions
+  // --- CORE LOGIC ---
+
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
+    loadFriends().then(setFriends);
   }, []);
 
-  // Auto-scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Initialize Peer and Crypto Identity
   useEffect(() => {
     // 1. Identity Layer: Cryptographic Key Generation
     const savedKeys = localStorage.getItem('meshpaw_keys');
     let keys: KeyPair;
     if (savedKeys) {
-      keys = JSON.parse(savedKeys);
+        keys = JSON.parse(savedKeys);
     } else {
-      keys = generateKeys();
-      localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
+        keys = generateKeys();
+        localStorage.setItem('meshpaw_keys', JSON.stringify(keys));
     }
     setKeyPair(keys);
 
-    // Your Address is derived from your Public Key
-    // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
     const base64Safe = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     const peerId = `mp-${base64Safe}-t`;
     
     setStatus('connecting');
 
-    // For local dev, Vite is on 3000 and PeerJS on 9000. For production, Server.js runs both on the same port!
     const isLocalDev = window.location.port === '3000' || window.location.port === '5173';
     const peerPort = isLocalDev ? 9000 : (window.location.port ? Number(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80));
 
@@ -203,12 +175,11 @@ export default function App() {
       port: peerPort,
       path: '/myapp',
       secure: window.location.protocol === 'https:',
-      debug: 2, // Slightly more verbose for mesh debugging
+      debug: 1,
       config: {
-        iceServers: [] // Off-grid: Don't wait for cloud STUN, just use local host candidates.
+        iceServers: [] // Brave compatibility: Off-grid
       }
     });
-
 
     newPeer.on('open', (id) => {
       setMyId(id);
@@ -228,10 +199,8 @@ export default function App() {
 
     newPeer.on('disconnected', () => {
       setStatus('disconnected');
-      // If we got violently disconnected but still have the object, try reconnecting
       setTimeout(() => {
         if (!newPeer.destroyed) {
-          console.log("Attempting to reconnect to Mesh signaling server...");
           newPeer.reconnect();
           setStatus('connecting');
         }
@@ -239,23 +208,31 @@ export default function App() {
     });
 
     setPeer(newPeer);
-
-    return () => {
-      newPeer.destroy();
-    };
+    return () => { newPeer.destroy(); };
   }, []);
 
-  // Store-and-Forward Flusher
+  // Discovery Polling (LAN)
+  useEffect(() => {
+    if (!peer || status !== 'connected') return;
+    const discoInterval = setInterval(() => {
+      // @ts-ignore
+      peer.listAllPeers((peers) => {
+        if (peers) {
+          setDiscoveredPeers(peers.filter(p => p !== myId));
+        }
+      });
+    }, 3000);
+    return () => clearInterval(discoInterval);
+  }, [peer, status, myId]);
+
+  // Store-and-Forward Task
   useEffect(() => {
     const queueInterval = setInterval(async () => {
-      // If we have active connections, check if there are any offline messages waiting in the database
       if (connections.size === 0) return;
-      
       try {
         const queued = await getQueuedMessages();
         if (queued.length === 0) return;
 
-        console.log(`Flushing ${queued.length} queued messages to mesh...`);
         for (const msg of queued) {
           let sentAny = false;
           const messageData = {
@@ -264,7 +241,7 @@ export default function App() {
             sourceId: msg.sourceId,
             text: msg.payload,
             timestamp: msg.timestamp,
-            ttl: msg.ttl
+            ttl: msg.ttl || 7
           };
 
           connections.forEach(conn => {
@@ -274,29 +251,13 @@ export default function App() {
             }
           });
 
-          // Remove from local queue once it's out in the wild
           if (sentAny) {
             await removeQueuedMessage(msg.id);
           }
         }
-      } catch (err) {
-        console.error('Queue flush failed:', err);
-      }
-    }, 5000); // Check every 5 seconds
-    
+      } catch (err) { console.error('Queue flush failed', err); }
+    }, 5000);
     return () => clearInterval(queueInterval);
-  }, [connections]);
-
-  // Ping interval
-  useEffect(() => {
-    const interval = setInterval(() => {
-      connections.forEach(conn => {
-        if (conn.open) {
-          conn.send({ type: 'ping', timestamp: Date.now() });
-        }
-      });
-    }, 3000);
-    return () => clearInterval(interval);
   }, [connections]);
 
   const setupConnection = (conn: DataConnection) => {
@@ -312,20 +273,17 @@ export default function App() {
         return newMap;
       });
       
-      // Verify if new connection relies on permanent trust
       const currentFriends = await loadFriends();
       if (!currentFriends.some(f => f.id === conn.peer)) {
         setPendingPeerPrompt(conn.peer);
       }
     };
 
-    if (conn.open) {
-      handleOpen();
-    } else {
-      conn.on('open', handleOpen);
-    }
+    if (conn.open) handleOpen();
+    else conn.on('open', handleOpen);
 
-    conn.on('data', async (data: any) => {
+    conn.on('data', async (incoming: any) => {
+      const data = incoming as Record<string, any>;
       setPeerStats(prev => {
         const newMap = new Map(prev);
         const current = (newMap.get(conn.peer) || { latency: 0, lastSeen: Date.now() }) as PeerStat;
@@ -334,36 +292,16 @@ export default function App() {
       });
 
       if (data.type === 'message') {
-        // --- ROUTING LAYER: Flood Routing (Gossip) & TTL ---
-        
-        // 1. Prevent infinite loops by checking database if seen
         const seen = await hasSeenMessage(data.id);
-        if (seen) return; // Drop packet
-
-        // Mark as seen immediately
+        if (seen) return;
         await markMessageSeen(data.id);
         
-        // Notify if app is in background
-        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-          try {
-            const allFriends = await loadFriends();
-            const senderObj = allFriends.find(f => f.id === (data.sourceId || conn.peer));
-            const pName = senderObj ? senderObj.name : generateFoodName(data.sourceId || conn.peer);
-            new Notification(`Mesh: ${generateAvatar(data.sourceId || conn.peer)} ${pName}`, {
-              body: data.text
-            });
-          } catch (e) { console.error('Silent notification fail', e); }
-        }
-
-        // 3. Verify Signature
-        const signature = data.signature;
-        const signingPubKey = data.signingPubKey;
+        // Signal verification
         let isVerified = false;
-        if (signature && signingPubKey) {
-          isVerified = verifyData(`${data.text}${data.sourceId}${data.timestamp}`, signature, signingPubKey);
+        if (data.signature && data.signingPubKey) {
+          isVerified = verifyData(`${data.text}${data.sourceId}${data.timestamp}`, data.signature, data.signingPubKey);
         }
 
-        // Render to UI
         setMessages(prev => [...prev, {
           id: data.id,
           senderId: data.sourceId || conn.peer,
@@ -371,39 +309,28 @@ export default function App() {
           timestamp: data.timestamp,
           isMine: false,
           isVerified,
-          signingPubKey,
+          signingPubKey: data.signingPubKey,
           reactions: {}
         }]);
 
-        // 2. Decrement TTL and Rebroadcast to everyone else
-        const ttl = typeof data.ttl === 'number' ? data.ttl : 7; // Default 7 hops
-        if (ttl > 1) {
-          const forwardedData = { ...data, ttl: ttl - 1 };
-          connections.forEach(forwardConn => {
-            if (forwardConn.open && forwardConn.peer !== conn.peer) {
-              forwardConn.send(forwardedData);
+        // Mesh Relay Logic
+        const ttl = typeof data.ttl === 'number' ? data.ttl : 7;
+        if (ttl > 1 && isRelayEnabled) {
+          const relayedData = { ...data, ttl: ttl - 1 };
+          let forwardCount = 0;
+          connections.forEach(c => {
+            if (c.open && c.peer !== conn.peer) {
+              c.send(relayedData);
+              forwardCount++;
             }
           });
-        }
-      } else if (data.type === 'reaction') {
-        setMessages(prev => prev.map(msg => {
-          if (msg.id === data.messageId) {
-            const currentReactions = msg.reactions || {};
-            const users = currentReactions[data.emoji] || [];
-            const newUsers = data.isAdding
-              ? (users.includes(data.senderId) ? users : [...users, data.senderId])
-              : users.filter(id => id !== data.senderId);
-
-            return {
-              ...msg,
-              reactions: {
-                ...currentReactions,
-                [data.emoji]: newUsers
-              }
-            };
+          if (forwardCount > 0) {
+            setRelayedCount(prev => {
+              localStorage.setItem('mesh_relayed', (prev + 1).toString());
+              return prev + 1;
+            });
           }
-          return msg;
-        }));
+        }
       } else if (data.type === 'ping') {
         conn.send({ type: 'pong', timestamp: data.timestamp });
       } else if (data.type === 'pong') {
@@ -419,957 +346,501 @@ export default function App() {
 
     conn.on('close', () => {
       setConnections(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(conn.peer);
-        return newMap;
-      });
-      setPeerStats(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(conn.peer);
-        return newMap;
+        const nm = new Map(prev);
+        nm.delete(conn.peer);
+        return nm;
       });
     });
-    
-    conn.on('error', (err) => {
-      console.error('Connection error:', err);
-    });
   };
 
-  const connectToPeer = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!peer || !connectId.trim() || connectId === myId) return;
-
-    const targetId = connectId.trim();
-    if (connections.has(targetId)) {
-      setShowConnectModal(false);
-      setConnectId('');
-      setConnectionError(null);
-      return;
-    }
-
-    setIsConnecting(true);
-    setConnectionError(null);
-    doConnect(peer, targetId, () => {
-      setShowConnectModal(false);
-      setConnectId('');
-    });
-  };
-
-  // Single reusable connect helper — used by both manual entry and QR scan.
-  // All actual connection events are handled inside setupConnection.
-  // This only handles the UI side-effects (modal close, error display, spinner).
-  const doConnect = (p: typeof peer, targetId: string, onSuccess?: () => void) => {
-    if (!p) return;
-    const conn = p.connect(targetId, {
-      reliable: true,
-      metadata: { sourceId: myId }
-    });
-    setupConnection(conn);
-
-    const t = setTimeout(() => {
-      setIsConnecting(false);
-      if (!conn.open) {
-        setConnectionError('Timed out — make sure both devices are on the same Wi-Fi/hotspot.');
-      }
-    }, 20000);
-
-    conn.on('open', () => {
-      clearTimeout(t);
-      setIsConnecting(false);
-      setConnectionError(null);
-      onSuccess?.();
-    });
-
-    conn.on('error', (err: any) => {
-      clearTimeout(t);
-      setIsConnecting(false);
-      setConnectionError(`Could not connect: ${err.type || err.message || 'check peer ID'}`);
-    });
-  };
-
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const sendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!inputMessage.trim()) return;
 
-    // Packet Structure
-    const messageId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
+    const msgId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
     const timestamp = Date.now();
-    
-    // Sign the message (using the exact same values as the packet)
     const { signature, signingPubKey } = signData(`${inputMessage.trim()}${myId}${timestamp}`, keyPair?.secretKey || '');
 
-    const messageData = {
+    const data = {
       type: 'message',
-      id: messageId,
-      sourceId: myId,  // Source ID
-      destId: 'ALL',   // Target ID
-      ttl: 7,          // Time to Live (7 hops)
+      id: msgId,
+      sourceId: myId,
       text: inputMessage.trim(),
-      timestamp: timestamp,
+      timestamp,
+      ttl: 7,
       signature,
       signingPubKey
     };
 
-    // Mark as seen so we don't echo our own messages
-    await markMessageSeen(messageId);
+    await markMessageSeen(msgId);
+    setMessages(prev => [...prev, { ...data, senderId: myId, isMine: true, isVerified: true, reactions: {} }]);
 
-    // Render locally immediately
-    setMessages(prev => [...prev, {
-      id: messageId,
-      senderId: myId,
-      text: inputMessage.trim(),
-      timestamp: messageData.timestamp,
-      isMine: true,
-      isVerified: true, // Mine is always verified to me!
-      signingPubKey,
-      reactions: {}
-    }]);
-
-    // Send to all connected peers
     if (connections.size > 0) {
-      connections.forEach(conn => {
-        if (conn.open) {
-          conn.send(messageData);
-        }
-      });
+      connections.forEach(c => c.open && c.send(data));
     } else {
-      // Store-and-Forward SQLite/IndexedDB approach
-      // If no one is around, store it!
       await queueMessage({
-        id: messageData.id,
-        sourceId: messageData.sourceId,
-        destId: messageData.destId,
+        id: msgId,
+        sourceId: myId,
+        destId: 'ALL',
         seqId: 1,
-        ttl: messageData.ttl,
-        payload: messageData.text,
-        timestamp: messageData.timestamp
+        ttl: 7,
+        payload: inputMessage.trim(),
+        timestamp
       });
     }
 
     setInputMessage('');
   };
 
-  const formatTime = (ts: number) => {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const toggleReaction = (messageId: string, emoji: string) => {
+    // Basic local state update for reactions (UI polish)
+    setMessages(prev => prev.map(m => {
+        if (m.id !== messageId) return m;
+        const current = m.reactions || {};
+        const users = current[emoji] || [];
+        const isAdding = !users.includes(myId);
+        return {
+            ...m,
+            reactions: {
+                ...current,
+                [emoji]: isAdding ? [...users, myId] : users.filter(u => u !== myId)
+            }
+        };
+    }));
   };
 
-  const formatTimeWithSeconds = (ts: number) => {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const clearAllData = () => {
+    if (window.confirm('Delete all mesh data and identity?')) {
+        localStorage.clear();
+        window.location.reload();
+    }
   };
 
-  const highlightText = (text: string, highlight: string) => {
-    if (!highlight.trim()) return text;
-    const parts = text.split(new RegExp(`(${highlight})`, 'gi'));
-    return parts.map((part, i) => 
-      part.toLowerCase() === highlight.toLowerCase() ? 
-        <span key={i} className="bg-emerald-500/40 text-emerald-100 rounded-sm px-0.5">{part}</span> : part
+  // --- UI COMPONENTS ---
+
+  const OnboardingFlow = () => {
+    const [tAlias, setTAlias] = useState('');
+    const [tSig, setTSig] = useState('⚡');
+    
+    const finish = () => {
+        if (!tAlias.trim()) return;
+        localStorage.setItem('mesh_alias', tAlias.trim());
+        localStorage.setItem('mesh_signature', tSig);
+        setAlias(tAlias.trim());
+        setSignalSignature(tSig);
+        setIsOnboarded(true);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-zinc-950 flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md space-y-8">
+                <div className="text-center space-y-2">
+                    <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto border border-emerald-400/20">
+                        <Zap className="w-10 h-10 text-emerald-400" />
+                    </div>
+                    <h1 className="text-4xl font-black text-white italic tracking-tighter">MESH<span className="text-emerald-500">CHAT</span></h1>
+                    <p className="text-zinc-500 text-sm font-medium">Offline-First Peer-to-Peer Protocol</p>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[40px] space-y-8 shadow-2xl">
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] ml-1">Network Alias</label>
+                        <input 
+                            autoFocus
+                            value={tAlias}
+                            onChange={(e) => setTAlias(e.target.value)}
+                            placeholder="e.g. GhostNode"
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-5 text-white focus:border-emerald-500 outline-none transition-all"
+                        />
+                    </div>
+
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] ml-1">Signal Signature</label>
+                        <div className="flex flex-wrap gap-3">
+                            {['⚡', '💎', '🛸', '🌀', '💀', '🔥', '🌵'].map(s => (
+                                <button 
+                                    key={s} 
+                                    onClick={() => setTSig(s)}
+                                    className={`w-12 h-12 rounded-xl text-xl transition-all ${tSig === s ? 'bg-emerald-500 text-zinc-950 scale-110 shadow-lg shadow-emerald-500/20' : 'bg-zinc-950 text-zinc-600 border border-zinc-800'}`}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={finish}
+                        disabled={!tAlias.trim()}
+                        className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 py-5 rounded-2xl text-zinc-950 font-black uppercase tracking-widest transition-all"
+                    >
+                        Initialize Node
+                    </button>
+                </div>
+            </motion.div>
+        </div>
     );
   };
 
-  const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-
-  const toggleReaction = (messageId: string, emoji: string) => {
-    setMessages(prev => {
-      const newMessages = [...prev];
-      const msgIndex = newMessages.findIndex(m => m.id === messageId);
-      if (msgIndex === -1) return prev;
-
-      const msg = newMessages[msgIndex];
-      const currentReactions = msg.reactions || {};
-      const users = currentReactions[emoji] || [];
-      const isAdding = !users.includes(myId);
-
-      const newUsers = isAdding
-        ? [...users, myId]
-        : users.filter(id => id !== myId);
-
-      newMessages[msgIndex] = {
-        ...msg,
-        reactions: {
-          ...currentReactions,
-          [emoji]: newUsers
-        }
-      };
-
-      // Broadcast
-      connections.forEach(conn => {
-        if (conn.open) {
-          conn.send({
-            type: 'reaction',
-            messageId,
-            emoji,
-            senderId: myId,
-            isAdding
-          });
-        }
-      });
-
-      return newMessages;
-    });
-    setActiveReactionMsg(null);
-  };
-
-  const filteredMessages = messages.filter(msg => 
-    msg.text.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const avgLatency = connections.size > 0 
-    ? Math.round(Array.from(peerStats.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + stat.latency, 0) / connections.size)
-    : 0;
+  if (!isOnboarded) return <OnboardingFlow />;
 
   return (
-    <div className="flex flex-col md:flex-row h-screen h-[100dvh] bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
+    <div className="fixed inset-0 bg-zinc-950 flex flex-col md:flex-row overflow-hidden font-sans selection:bg-emerald-500/30 text-zinc-100">
       
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar (Desktop) / Drawer (Mobile) */}
-        <div className={`
-          ${activeTab === 'peers' ? 'flex w-full absolute inset-0 z-20 bg-zinc-950' : 'hidden'}
-          md:flex md:relative md:w-80 md:bg-zinc-900 border-r border-zinc-800 flex-col h-full overflow-hidden
-        `}>
-          <div className="flex flex-col h-full pb-16 md:pb-0">
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-2 font-bold text-lg tracking-tight text-emerald-400">
-                <PawPrint className="w-5 h-5" />
-                <span>MeshPaw Base</span>
-              </div>
-            </div>
-          
-          <div className="p-4 border-b border-zinc-800">
-            <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">My Node</div>
-            <div className="flex items-center justify-between bg-zinc-950 rounded-lg p-3 border border-zinc-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center text-xl shadow-inner border border-zinc-800">
-                  {myId ? generateAvatar(myId) : '⏳'}
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-lg text-emerald-400 leading-tight">{myId ? generateFoodName(myId) : '------'}</span>
-                  <span className="font-mono text-[10px] text-zinc-500 uppercase mt-0.5">My Local Node</span>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowQrModal(true)}
-                className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors"
-                title="Show QR Code"
-              >
-                <QrCode className="w-4 h-4 text-zinc-300" />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                Connected Peers ({connections.size})
-              </div>
-              <button 
-                onClick={() => setShowConnectModal(true)}
-                className="p-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 rounded-md transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-            
-            {connections.size === 0 ? (
-              <div className="text-center py-8 text-zinc-500 text-sm">
-                <Users className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                <p>No peers connected.</p>
-                <p className="mt-1">Add a peer to start meshing.</p>
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {Array.from(connections.keys()).map((peerId: string) => {
-                  const stats = peerStats.get(peerId);
-                  const isStale = stats && (Date.now() - stats.lastSeen > 15000);
-                  const isFriend = friends.some(f => f.id === peerId);
-                  
-                  return (
-                    <li key={peerId} className={`flex flex-col p-3 rounded-lg border transition-all ${isFriend ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-800/50 border-zinc-800/50'}`}>
-                      <div className="flex items-start justify-between mb-1">
-                        <div className="flex items-start gap-3 max-w-[70%]">
-                          <div className="relative">
-                            <div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center text-sm shadow-inner border border-zinc-700">
-                              {generateAvatar(peerId)}
-                            </div>
-                            <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-zinc-900 ${isStale ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse-slow'}`}></div>
-                          </div>
-                          <div className="flex flex-col overflow-hidden">
-                            <span className={`font-medium text-sm leading-tight truncate ${isFriend ? 'text-amber-400 font-bold' : 'text-emerald-100'}`}>
-                              {getDisplayName(peerId)}
-                            </span>
-                            <span className="font-mono text-[10px] text-zinc-500 mt-0.5 max-w-full truncate">#{peerId.substring(0, 16)}...</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <button 
-                            onClick={() => toggleFriend(peerId)}
-                            className={`p-1 rounded transition-colors ${isFriend ? 'text-amber-400 hover:bg-amber-500/20' : 'text-zinc-600 hover:text-amber-400 hover:bg-zinc-800'}`}
-                            title={isFriend ? "Remove Friend" : "Save as Permanent Friend"}
-                          >
-                            <Star className="w-4 h-4" fill={isFriend ? "currentColor" : "none"} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mt-1 pt-1 border-t border-white/5">
-                        <span className={`text-[10px] uppercase font-bold tracking-wider ${isFriend ? 'text-amber-500/70' : 'text-zinc-600'}`}>
-                          {isFriend ? 'Permanent' : 'Temporary'}
-                        </span>
-                        {stats && (
-                          <span className={`text-[10px] font-mono ${stats.latency < 100 ? 'text-emerald-400' : stats.latency < 300 ? 'text-amber-400' : 'text-rose-400'}`}>
-                            {stats.latency}ms ping
-                          </span>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            
-            {/* Address Book / Offline Friends */}
-            <div className="mt-8 mb-4 border-t border-zinc-800 pt-6 flex items-center justify-between">
-              <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-                <Star className="w-4 h-4 text-emerald-500" />
-                My Address Book ({friends.length})
-              </div>
-            </div>
-            {friends.length === 0 ? (
-              <div className="text-center py-4 bg-zinc-900/40 rounded-lg border border-zinc-800/30 text-zinc-600 text-[11px] italic">No trusted friends saved.</div>
-            ) : (
-              <ul className="space-y-2">
-                {friends.map(friend => {
-                  const isConnected = connections.has(friend.id);
-                  return (
-                    <li 
-                      key={friend.id} 
-                      onClick={() => {
-                        if (!isConnected && peer) {
-                          const c = peer.connect(friend.id);
-                          setupConnection(c);
-                        }
-                      }}
-                      className={`flex flex-col p-3 rounded-lg border transition-all cursor-pointer ${isConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-zinc-900/40 border-zinc-800/30 hover:bg-zinc-800/60'}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <div className="w-8 h-8 bg-zinc-950 rounded-full flex items-center justify-center text-sm shadow-inner border border-zinc-800">
-                              {generateAvatar(friend.id)}
-                            </div>
-                            <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-zinc-950 ${isConnected ? 'bg-emerald-500' : 'bg-zinc-600'}`}></div>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className={`font-bold text-sm leading-tight truncate ${isConnected ? 'text-amber-400' : 'text-zinc-300'}`}>
-                              {friend.name}
-                            </span>
-                            <span className="font-mono text-[10px] text-zinc-500 mt-0.5 uppercase tracking-wider">
-                              {isConnected ? 'Online Mesh' : 'Tap to Ping'}
-                            </span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setViewPeerInfo(friend.id);
-                          }}
-                          className="p-1 rounded text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors"
-                        >
-                          <Search className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+      {/* Sidebar Desktop */}
+      <div className="hidden md:flex w-24 bg-zinc-950 border-r border-zinc-900 flex-col items-center py-8 gap-10">
+        <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20">
+          <Zap className="w-6 h-6 text-emerald-500" fill="currentColor" />
+        </div>
+        <div className="flex-1 flex flex-col gap-6">
+          <button onClick={() => setActiveTab('chats')} className={`p-4 rounded-2xl transition-all ${activeTab === 'chats' ? 'bg-emerald-500 text-zinc-950 shadow-xl' : 'text-zinc-500 hover:text-white'}`}>
+            <MessageSquare className="w-6 h-6" />
+          </button>
+          <button onClick={() => setActiveTab('discovery')} className={`p-4 rounded-2xl transition-all ${activeTab === 'discovery' ? 'bg-emerald-500 text-zinc-950 shadow-xl' : 'text-zinc-500 hover:text-white'}`}>
+            <Radar className="w-6 h-6" />
+          </button>
+          <button onClick={() => setActiveTab('settings')} className={`p-4 rounded-2xl transition-all ${activeTab === 'settings' ? 'bg-emerald-500 text-zinc-950 shadow-xl' : 'text-zinc-500 hover:text-white'}`}>
+            <Settings className="w-6 h-6" />
+          </button>
         </div>
       </div>
 
-      {/* Modern PWA Install Prompt (Overlay) */}
-      {showInstallPrompt && !hasDismissedInstall && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-md bg-emerald-600 rounded-2xl p-5 shadow-2xl flex flex-col sm:flex-row items-center gap-4 animate-in slide-in-from-bottom-10 duration-500 border border-emerald-500/30">
-          <div className="bg-white/20 p-3 rounded-xl">
-            <Download className="w-8 h-8 text-white" />
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="font-bold text-white text-lg leading-tight">Install MeshPaw</h3>
-            <p className="text-emerald-50 text-sm opacity-90">Install this web app for a better, off-grid experience.</p>
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button 
-              onClick={dismissInstall}
-              className="px-4 py-2 text-white/80 hover:text-white text-sm font-medium transition-colors"
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col relative overflow-hidden pb-20 md:pb-0">
+        
+        <AnimatePresence mode="wait">
+          {activeTab === 'chats' && (
+            <motion.div 
+               key="chats"
+               initial={{ opacity: 0, x: 20 }}
+               animate={{ opacity: 1, x: 0 }}
+               exit={{ opacity: 0, x: -20 }}
+               className="flex-1 flex flex-col overflow-hidden"
             >
-              Later
-            </button>
-            <button 
-              onClick={handleInstallClick}
-              className="flex-1 sm:flex-none px-6 py-2.5 bg-white text-emerald-700 font-bold rounded-xl shadow-lg hover:bg-emerald-50 active:scale-95 transition-all text-sm"
-            >
-              Install Now
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-        <div className={`flex-1 flex flex-col min-w-0 bg-black ${activeTab === 'peers' ? 'hidden md:flex' : 'flex'} pb-16 md:pb-0`}>
-          {/* Header */}
-          <header className="h-16 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-md flex items-center justify-between px-4 sticky top-0 z-10">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                {status === 'connected' ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full text-xs font-medium">
-                      <Wifi className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Online</span>
+               {/* Chat Header */}
+               <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-6 bg-zinc-950/50 backdrop-blur-xl">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-900 flex items-center justify-center text-2xl border border-zinc-800">
+                        {generateAvatar(myId, true)}
                     </div>
-                  </div>
-                ) : status === 'connecting' ? (
-                  <div className="flex items-center gap-2 text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full text-xs font-medium">
-                    <div className="w-3.5 h-3.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin"></div>
-                    <span className="hidden sm:inline">Connecting...</span>
-                  </div>
-                ) : (
-                  <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium ${connections.size > 0 ? 'text-emerald-400 bg-emerald-400/10' : 'text-rose-400 bg-rose-400/10'}`}>
-                    {connections.size > 0 ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-                    <span className="hidden sm:inline">{connections.size > 0 ? 'Local Mesh' : 'Offline'}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => {
-                  setShowSearch(!showSearch);
-                  if (showSearch) setSearchQuery('');
-                }} 
-                className={`p-2 rounded-full transition-colors flex items-center gap-2 ${showSearch ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
-                title="Search Messages"
-              >
-                <Search className="w-5 h-5" />
-                <span className="text-xs font-medium hidden lg:inline">Search</span>
-              </button>
-              
-              <div className="hidden md:flex items-center gap-3">
-                <button 
-                  onClick={() => setShowQrModal(true)} 
-                  className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-full transition-colors flex items-center gap-2"
-                  title="My QR Code"
-                >
-                  <QrCode className="w-5 h-5" />
-                  <span className="text-xs font-medium hidden lg:inline">My QR</span>
-                </button>
-              </div>
-              
-              <div className="flex items-center gap-3 md:hidden">
-                <div className="font-mono text-xs font-bold bg-zinc-800 px-2 py-1 rounded max-w-[120px] truncate">{myId ? `${myId.substring(0, 10)}...` : '---'}</div>
-                <button 
-                  onClick={() => setShowQrModal(true)} 
-                  className="p-2 text-zinc-400 hover:text-white"
-                  title="My QR Code"
-                >
-                  <QrCode className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </header>
-
-        {/* Search Bar */}
-        {showSearch && (
-          <div className="bg-zinc-900 border-b border-zinc-800 p-3 animate-in slide-in-from-top-2 duration-200">
-            <div className="relative max-w-3xl mx-auto">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search messages..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-9 pr-10 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                autoFocus
-              />
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Radar View OR Chat */}
-        {activeTab === 'radar' ? (
-          <div className="flex-1 overflow-hidden relative flex flex-col items-center justify-center p-6 bg-zinc-950">
-            <div className="text-center z-10 mb-8 absolute top-6 md:top-8">
-              <h2 className="text-xl md:text-2xl font-bold text-emerald-400 tracking-wider uppercase mb-2">Local Mesh Radar</h2>
-              <p className="text-zinc-400 max-w-md mx-auto text-xs md:text-sm">Visualizing active P2P connections.</p>
-            </div>
-            
-            <div className="relative w-72 h-72 sm:w-96 sm:h-96 md:w-[500px] md:h-[500px] aspect-square rounded-full border border-emerald-500/20 bg-emerald-950/20 shadow-[0_0_100px_rgba(16,185,129,0.1)] flex items-center justify-center overflow-hidden">
-              {/* Radar Circles */}
-              <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-75"></div>
-              <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-50"></div>
-              <div className="absolute inset-0 rounded-full border border-emerald-500/10 scale-25"></div>
-              <div className="absolute w-full h-[1px] bg-emerald-500/10"></div>
-              <div className="absolute h-full w-[1px] bg-emerald-500/10"></div>
-              
-              {/* Sweeping Scanner */}
-              <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 bg-gradient-to-br from-emerald-500/30 to-transparent origin-top-left animate-[spin_4s_linear_infinite] rounded-tr-full shadow-[0_0_20px_rgba(16,185,129,0.5)]">
-                <div className="absolute left-0 bottom-0 w-full h-[2px] bg-emerald-400 blur-[1px]"></div>
-              </div>
-
-              {/* Center You */}
-              <div className="absolute z-20 flex flex-col items-center">
-                <div className="w-4 h-4 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.8)] border-2 border-zinc-900"></div>
-                <div className="bg-zinc-900/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-white mt-2 border border-emerald-500/30">YOU</div>
-              </div>
-
-              {/* Peers */}
-              {Array.from(connections.keys()).map((peerId: string, index: number) => {
-                const isFriend = friends.some(f => f.id === peerId);
-                const angle = (index * (360 / Math.max(1, connections.size))) * (Math.PI / 180);
-                
-                // Keep bounding radius between 10% and 42% so it stays perfectly inside the radar dial!
-                const distance = 10 + (Math.abs(peerId.charCodeAt(0) % 32)); 
-                
-                const xVal = 50 + (Math.cos(angle) * distance);
-                const yVal = 50 + (Math.sin(angle) * distance);
-                const x = `${xVal}%`;
-                const y = `${yVal}%`;
-                
-                return (
-                  <div 
-                    key={peerId} 
-                    onClick={() => setViewPeerInfo(peerId)}
-                    className="absolute z-10 flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2 transition-all duration-1000 cursor-pointer shadow-lg hover:scale-110 hover:z-20 group" 
-                    style={{ left: x, top: y }}
-                  >
-                    <div className="w-8 h-8 rounded-full border-2 border-emerald-500 bg-zinc-900 flex items-center justify-center text-sm shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-                      {generateAvatar(peerId)}
-                    </div>
-                    <div className={`mt-1.5 px-2 py-0.5 rounded-full backdrop-blur-md text-[10px] font-bold border transition-colors ${isFriend ? 'bg-amber-500/80 text-white border-amber-300' : 'bg-zinc-900/80 text-white border-white/20'}`}>
-                      {getDisplayName(peerId)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div className="absolute bottom-8 flex gap-4 text-xs font-mono">
-              <div className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800">
-                <div className="w-2 h-2 rounded-full bg-white"></div>
-                <span className="text-zinc-400">Temporary Node</span>
-              </div>
-              <div className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800">
-                <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]"></div>
-                <span className="text-zinc-400">Permanent Friend</span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center border border-zinc-800">
-                <PawPrint className="w-8 h-8 opacity-50" />
-              </div>
-              <div className="text-center max-w-xs">
-                <h3 className="text-zinc-300 font-medium mb-1">No messages yet</h3>
-                <p className="text-sm">Connect to a peer and start broadcasting to the local mesh.</p>
-                <div className="flex flex-col gap-2 mt-4 text-xs text-left">
-                  <div className="bg-emerald-500/10 p-2.5 rounded border border-emerald-500/20 text-emerald-400">
-                    <strong>Crypto Keys:</strong> Your identity is a Curve25519 PubKey.
-                  </div>
-                  <div className="bg-amber-500/10 p-2.5 rounded border border-amber-500/20 text-amber-500/90">
-                    <strong>Gossip Protocol:</strong> Messages hop up to 7 times (TTL) avoiding endless loops.
-                  </div>
-                  <div className="bg-blue-500/10 p-2.5 rounded border border-blue-500/20 text-blue-400">
-                    <strong>Off-grid Ready:</strong> Sending offline? Messages queue locally & forward when connected!
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowConnectModal(true)}
-                className="mt-4 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-semibold rounded-lg transition-colors"
-              >
-                Add Peer
-              </button>
-            </div>
-          ) : filteredMessages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4">
-              <Search className="w-12 h-12 opacity-20 mb-2" />
-              <p>No messages match "{searchQuery}"</p>
-            </div>
-          ) : (
-            <div className="max-w-3xl mx-auto space-y-6">
-              {filteredMessages.map((msg, idx) => {
-                const showSender = idx === 0 || filteredMessages[idx - 1].senderId !== msg.senderId;
-                
-                return (
-                  <div key={msg.id} className={`flex flex-col ${msg.isMine ? 'items-end' : 'items-start'}`}>
-                    {showSender && !msg.isMine && (
-                      <div className="mb-1 ml-1 flex items-baseline gap-1.5">
-                        <span className="text-xs font-bold text-emerald-300 gap-1 flex items-baseline">
-                          <span className="text-[10px]">{generateAvatar(msg.senderId)}</span>
-                          {getDisplayName(msg.senderId)}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-mono text-zinc-600">#{msg.senderId.substring(0, 10)}</span>
-                          {msg.isVerified && (
-                             <ShieldCheck className="w-3 h-3 text-emerald-500" title="Verified Mesh Identity" />
-                          )}
+                    <div>
+                        <h2 className="text-lg font-black italic uppercase tracking-tighter">{alias}</h2>
+                        <div className="flex items-center gap-1.5">
+                            <div className={`w-1.5 h-1.5 rounded-full ${status === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                            <span className="text-[10px] font-mono text-zinc-500 uppercase font-bold">{status} • {connections.size} NODES</span>
                         </div>
-                      </div>
-                    )}
-                    
-                    <div className={`flex items-center gap-2 ${msg.isMine ? 'flex-row-reverse' : 'flex-row'} relative group`}>
-                      <div className={`
-                        max-w-[85%] sm:max-w-[75%] px-4 py-2.5 rounded-2xl
-                        ${msg.isMine 
-                          ? 'bg-emerald-600 text-white rounded-br-sm' 
-                          : 'bg-zinc-800 text-zinc-100 rounded-bl-sm border border-zinc-700'}
-                      `}>
-                        <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                          {highlightText(msg.text, searchQuery)}
-                        </p>
-                      </div>
-                      
-                      <button
-                        onClick={() => setActiveReactionMsg(activeReactionMsg === msg.id ? null : msg.id)}
-                        className={`md:opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-full ${activeReactionMsg === msg.id ? 'opacity-100 bg-zinc-800 text-zinc-200' : ''}`}
-                      >
-                        <SmilePlus className="w-4 h-4" />
-                      </button>
-
-                      {activeReactionMsg === msg.id && (
-                        <div className={`absolute top-full mt-1 z-10 bg-zinc-800 rounded-full px-2 py-1.5 flex gap-2 shadow-lg border border-zinc-700 ${msg.isMine ? 'right-0' : 'left-0'}`}>
-                          {EMOJIS.map(e => (
-                            <button key={e} onClick={() => toggleReaction(msg.id, e)} className="hover:scale-125 transition-transform text-base">
-                              {e}
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
-
-                    {msg.reactions && Object.values(msg.reactions as Record<string, string[]>).some((users: string[]) => users.length > 0) && (
-                      <div className={`flex flex-wrap gap-1 mt-1 ${msg.isMine ? 'justify-end' : 'justify-start'}`}>
-                        {Object.entries(msg.reactions as Record<string, string[]>).map(([emoji, users]: [string, string[]]) => {
-                          if (users.length === 0) return null;
-                          const iReacted = users.includes(myId);
-                          return (
-                            <button
-                              key={emoji}
-                              onClick={() => toggleReaction(msg.id, emoji)}
-                              className={`text-[11px] px-1.5 py-0.5 rounded-full border flex items-center gap-1 transition-colors ${iReacted ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:bg-zinc-700'}`}
-                            >
-                              <span>{emoji}</span>
-                              <span className="font-medium">{users.length}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <span className="text-[10px] text-zinc-600 mt-1 mx-1 font-medium">
-                      {formatTime(msg.timestamp)}
-                    </span>
                   </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
-        )}
-
-        {/* Input Area (Only visible in Chat Tab) */}
-        {activeTab === 'chat' && (
-        <div className="p-4 bg-zinc-950 border-t border-zinc-800">
-          <form onSubmit={sendMessage} className="max-w-3xl mx-auto relative flex items-end gap-2">
-            <div className="relative flex-1 bg-zinc-900 rounded-xl border border-zinc-800 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/50 transition-all">
-              <textarea
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage(e);
-                  }
-                }}
-                placeholder={connections.size > 0 ? "Broadcast to mesh..." : "Offline mode: Messages will queue up..."}
-                className="w-full bg-transparent text-zinc-100 placeholder-zinc-500 p-3 sm:p-4 max-h-32 min-h-[52px] resize-none focus:outline-none disabled:opacity-50"
-                rows={1}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={!inputMessage.trim()}
-                  className="p-3 sm:p-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 rounded-xl transition-colors flex-shrink-0"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </form>
-        </div>
-        )}
-      </div>
-      </div>
-
-      {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full border-t border-zinc-800 bg-zinc-950/90 [backdrop-filter:blur(8px)] backdrop-blur-lg z-50 pb-safe">
-         <div className="flex justify-around items-center h-16 px-2">
-            <button onClick={() => setActiveTab('chat')} className={`flex flex-col items-center gap-1 flex-1 py-2 ${activeTab === 'chat' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'}`}>
-                <MessageSquare className="w-6 h-6"/>
-                <span className="text-[10px] font-bold tracking-wider">MESSAGES</span>
-            </button>
-            <button onClick={() => setActiveTab('radar')} className={`flex flex-col items-center gap-1 flex-1 py-2 ${activeTab === 'radar' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'}`}>
-                <Radar className="w-6 h-6"/>
-                <span className="text-[10px] font-bold tracking-wider">RADAR</span>
-            </button>
-            <button onClick={() => setActiveTab('peers')} className={`flex flex-col items-center gap-1 flex-1 py-2 ${activeTab === 'peers' ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-400'}`}>
-                <Users className="w-6 h-6"/>
-                <span className="text-[10px] font-bold tracking-wider">PEERS</span>
-            </button>
-         </div>
-      </div>
-
-      {/* Modals Overlay */}
-      {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          
-          {/* QR Modal */}
-          {showQrModal && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
-              <button 
-                onClick={() => setShowQrModal(false)}
-                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-full"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              
-              <div className="text-center mb-6">
-                <h2 className="text-xl font-bold text-white">Your Node ID</h2>
-                <p className="text-zinc-400 text-sm mt-1">Scan to connect directly</p>
-              </div>
-              
-              <div className="bg-white p-4 rounded-xl flex justify-center mb-6 relative">
-                <QRCodeSVG value={myId} size={200} level="M" aria-hidden="true" title="" />
-                {/* Overlay to block browser long-press tooltips on mobile SVG titles */}
-                <div className="absolute inset-0 z-10"></div>
-              </div>
-              
-              <div className="bg-zinc-950 rounded-lg p-3 border border-zinc-800 text-center">
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Crypto Address</div>
-                <div className="font-mono text-xs font-bold text-emerald-400 break-all">{myId}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Connect Modal */}
-          {showConnectModal && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
-              <button 
-                onClick={() => setShowConnectModal(false)}
-                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-full"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-white">Add Peer</h2>
-                  <p className="text-zinc-400 text-sm mt-1">Enter a node ID to establish connection</p>
-                </div>
-                <button 
-                  onClick={() => setShowScanner(!showScanner)}
-                  className={`p-2 rounded-xl transition-colors ${showScanner ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-emerald-400 hover:bg-zinc-700'}`}
-                  title="Scan QR Code"
-                >
-                  <ScanLine className="w-5 h-5" />
-                </button>
-              </div>
-
-              {showScanner && (
-                <div className="mb-6 rounded-xl overflow-hidden border border-zinc-800 bg-black max-h-[250px] relative">
-                  <Scanner onScan={(result) => {
-                    const scannedId = result?.[0]?.rawValue;
-                    if (scannedId && scannedId.length > 20 && peer && scannedId !== myId && !connections.has(scannedId)) {
-                      setConnectId(scannedId);
-                      setShowScanner(false);
-                      setIsConnecting(true);
-                      setConnectionError(null);
-                      doConnect(peer, scannedId, () => {
-                        setShowConnectModal(false);
-                        setConnectId('');
-                      });
-                    }
-                  }} />
-                  <div className="absolute font-mono text-center w-full bottom-2 left-0 text-emerald-400 text-xs bg-black/50 py-1">Scanning Crypto ID...</div>
-                </div>
-              )}
-              
-              <form onSubmit={connectToPeer}>
-                <div className="mb-6">
-                  <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-                    Node ID
-                  </label>
-                  <input
-                    type="text"
-                    value={connectId}
-                    onChange={(e) => setConnectId(e.target.value)}
-                    placeholder="e.g. 7A9B..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-white font-mono text-sm tracking-wider focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all cursor-text"
-                    autoFocus
-                  />
-                </div>
-                
-                {connectionError && (
-                  <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
-                    <X className="w-4 h-4 flex-shrink-0" />
-                    {connectionError}
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowQrModal(true)} className="p-3 text-zinc-500 hover:bg-zinc-900 rounded-xl transition-all"><QrCode className="w-5 h-5"/></button>
+                    <button onClick={() => setShowConnectModal(true)} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20"><UserPlus className="w-5 h-5"/></button>
                   </div>
-                )}
-                
-                <button
-                  type="submit"
-                  disabled={!connectId.trim() || connectId.length < 20 || isConnecting}
-                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-500 text-zinc-950 font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {isConnecting ? (
-                    <>
-                      <div className="w-4 h-4 rounded-full border-2 border-zinc-950 border-t-transparent animate-spin"></div>
-                      Connecting...
-                    </>
+               </header>
+
+               {/* Messages */}
+               <div className="flex-1 overflow-y-auto px-6 py-8 space-y-8 custom-scrollbar">
+                  {messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+                         <div className="relative">
+                            <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 4, repeat: Infinity }} className="absolute inset-0 bg-emerald-500 blur-3xl rounded-full" />
+                            <MessageSquare className="w-20 h-20 text-zinc-800 relative z-10" />
+                         </div>
+                         <div className="space-y-2">
+                            <h3 className="text-xl font-black italic uppercase tracking-widest">Mesh Protocol Active</h3>
+                            <p className="text-zinc-600 text-sm max-w-xs mx-auto">Messages are end-to-end encrypted and will relay through other nodes automatically.</p>
+                         </div>
+                    </div>
                   ) : (
-                    'Connect'
+                    <div className="max-w-4xl mx-auto space-y-8">
+                      {messages.map((msg, idx) => {
+                        const isRep = idx > 0 && messages[idx-1].senderId === msg.senderId;
+                        return (
+                          <div key={msg.id} className={`flex flex-col ${msg.isMine ? 'items-end' : 'items-start'}`}>
+                            {!isRep && !msg.isMine && (
+                                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1 ml-1 flex items-center gap-2">
+                                    {generateAvatar(msg.senderId)} {getDisplayName(msg.senderId)}
+                                    {msg.isVerified && <ShieldCheck className="w-3 h-3"/>}
+                                </span>
+                            )}
+                            <div className={`group relative max-w-[85%] px-5 py-4 rounded-3xl ${msg.isMine ? 'bg-emerald-500 text-zinc-950 rounded-tr-sm font-medium' : 'bg-zinc-900 text-zinc-100 rounded-tl-sm border border-zinc-800 italic'}`}>
+                                <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                                <div className={`absolute top-0 bottom-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity ${msg.isMine ? 'right-full pr-4' : 'left-full pl-4'}`}>
+                                    {EMOJIS.map(e => <button key={e} onClick={() => toggleReaction(msg.id, e)} className="hover:scale-125 transition-transform">{e}</button>)}
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-mono text-zinc-700 mt-1 mx-1 font-bold">{formatTime(msg.timestamp)}</span>
+                          </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </div>
                   )}
-                </button>
-              </form>
-            </div>
+               </div>
+
+               {/* Input */}
+               <div className="p-6 bg-zinc-950/80 backdrop-blur-md">
+                   <form onSubmit={sendMessage} className="max-w-4xl mx-auto flex items-end gap-4">
+                      <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-[30px] p-2 focus-within:border-emerald-500/50 transition-all shadow-2xl">
+                        <textarea 
+                            value={inputMessage}
+                            onChange={(e) => setInputMessage(e.target.value)}
+                            onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                            placeholder={connections.size > 0 ? "Broadcast to mesh..." : "Queuing for offline relay..."}
+                            className="w-full bg-transparent p-4 text-white placeholder-zinc-700 outline-none resize-none max-h-40 min-h-[60px]"
+                            rows={1}
+                        />
+                      </div>
+                      <button 
+                        type="submit"
+                        disabled={!inputMessage.trim()}
+                        className="w-16 h-16 bg-emerald-500 text-zinc-950 rounded-full flex items-center justify-center hover:bg-emerald-400 disabled:bg-zinc-900 disabled:text-zinc-700 transition-all shadow-lg hover:shadow-emerald-500/20"
+                      >
+                        <Send className="w-7 h-7" />
+                      </button>
+                   </form>
+               </div>
+            </motion.div>
           )}
 
-          {/* New Peer Security Prompt Modal */}
-          {pendingPeerPrompt && (
-            <div className="bg-zinc-900 border border-emerald-500/50 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in slide-in-from-bottom-5 duration-300">
-              <div className="mb-6 text-center">
-                <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
-                  <Star className="w-6 h-6 text-emerald-400" />
-                </div>
-                <h2 className="text-xl font-bold text-white leading-tight mb-2">New Node Connected!</h2>
-                <p className="text-zinc-400 text-sm">
-                  Would you like to save this device permanently to your Address Book?
-                </p>
-                <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 mt-4 overflow-hidden flex flex-col items-center">
-                  <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center text-3xl shadow-inner border border-zinc-700 mb-3">
-                    {generateAvatar(pendingPeerPrompt)}
+          {activeTab === 'discovery' && (
+            <motion.div 
+               key="discovery"
+               initial={{ opacity: 0, scale: 0.95 }}
+               animate={{ opacity: 1, scale: 1 }}
+               exit={{ opacity: 0, scale: 0.95 }}
+               className="flex-1 flex flex-col items-center justify-center p-8 bg-zinc-950 relative overflow-hidden"
+            >
+               <div className="absolute inset-0 opacity-20 pointer-events-none">
+                  {[1, 2, 3].map(i => (
+                    <motion.div 
+                        key={i}
+                        animate={{ scale: [1, 8], opacity: [0.5, 0] }}
+                        transition={{ duration: 6, repeat: Infinity, delay: i * 2, ease: "linear" }}
+                        className="absolute top-1/2 left-1/2 w-40 h-40 border border-emerald-500 rounded-full -translate-x-1/2 -translate-y-1/2"
+                    />
+                  ))}
+               </div>
+
+               <div className="relative z-10 w-full max-w-2xl space-y-10">
+                  <div className="text-center space-y-3">
+                    <Radar className="w-20 h-20 text-emerald-500 mx-auto animate-pulse" />
+                    <h2 className="text-4xl font-black italic uppercase tracking-tighter">Node Discovery</h2>
+                    <p className="text-zinc-500 font-mono text-xs uppercase bg-zinc-900/50 py-2 px-4 rounded-full inline-block border border-zinc-800">
+                      Scanning ID: {myId.slice(0, 16)}...
+                    </p>
                   </div>
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Crypto ID</div>
-                  <div className="font-mono text-xs text-emerald-400 truncate w-full text-center">{pendingPeerPrompt}</div>
-                  <div className="text-sm font-bold text-emerald-100 mt-2">
-                    {generateFoodName(pendingPeerPrompt)}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-[40px] space-y-6">
+                        <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest flex items-center gap-2">
+                           <Users className="w-3 h-3 text-emerald-500" /> Nearby Nodes
+                        </h4>
+                        <div className="space-y-4">
+                            {discoveredPeers.length === 0 ? (
+                                <p className="text-zinc-700 text-xs font-mono italic">No peers strictly detected on current gateway...</p>
+                            ) : (
+                                discoveredPeers.map(pId => (
+                                    <button 
+                                        key={pId}
+                                        onClick={() => { setConnectId(pId); setShowConnectModal(true); }}
+                                        className="w-full flex items-center justify-between group bg-zinc-950 p-4 rounded-3xl border border-zinc-800 hover:border-emerald-500/30 transition-all"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-2xl">{generateAvatar(pId)}</div>
+                                            <div className="text-left">
+                                                <div className="text-sm font-black text-white group-hover:text-emerald-400 transition-colors uppercase italic">{generateFoodName(pId)}</div>
+                                                <div className="text-[10px] font-mono text-zinc-600 uppercase">Signal Strength 100%</div>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-zinc-800 group-hover:text-emerald-500" />
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-[40px] space-y-8">
+                        <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest flex items-center gap-2">
+                           <Activity className="w-3 h-3 text-blue-500" /> Routing Metrics
+                        </h4>
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-end border-b border-zinc-800/50 pb-4">
+                                <span className="text-[10px] font-bold text-zinc-500 uppercase">Packets Relayed</span>
+                                <span className="text-3xl font-black italic text-emerald-500">{relayedCount}</span>
+                            </div>
+                            <div className="flex justify-between items-end border-b border-zinc-800/50 pb-4">
+                                <span className="text-[10px] font-bold text-zinc-500 uppercase">Node Uptime</span>
+                                <span className="text-xl font-bold text-zinc-300">{Math.floor((Date.now() - startTime) / 60000)}m</span>
+                            </div>
+                            <div className="flex justify-between items-end border-b border-zinc-800/50 pb-4">
+                                <span className="text-[10px] font-bold text-zinc-500 uppercase">Encrypted Keys</span>
+                                <span className="text-xl font-bold text-emerald-500/50">ACTIVE</span>
+                            </div>
+                        </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={async () => {
-                    await toggleFriend(pendingPeerPrompt);
-                    setPendingPeerPrompt(null);
-                  }}
-                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                >
-                  <Star className="w-4 h-4" fill="currentColor" />
-                  Save as Permanent Friend
-                </button>
-                <button
-                  onClick={() => setPendingPeerPrompt(null)}
-                  className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg transition-colors"
-                >
-                  Keep Temporary
-                </button>
-              </div>
-            </div>
+               </div>
+            </motion.div>
           )}
 
-          {/* Node Info & Profile Viewer */}
-          {viewPeerInfo && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
-               <button 
-                  onClick={() => setViewPeerInfo(null)}
-                  className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-full"
-                >
-                  <X className="w-4 h-4" />
+          {activeTab === 'settings' && (activeTab === 'settings' && (
+            <motion.div 
+               key="settings"
+               initial={{ opacity: 0, y: 20 }}
+               animate={{ opacity: 1, y: 0 }}
+               exit={{ opacity: 0, y: 20 }}
+               className="flex-1 overflow-y-auto p-8 bg-zinc-950"
+            >
+               <div className="max-w-2xl mx-auto space-y-12 pb-24">
+                  <h2 className="text-4xl font-black italic uppercase tracking-tighter">Node Settings</h2>
+                  
+                  <section className="space-y-6">
+                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Identity Profile</h4>
+                    <div className="bg-zinc-900/50 border border-zinc-800 p-8 rounded-[40px] space-y-8">
+                        <div className="flex items-center gap-6">
+                            <div className="w-20 h-20 bg-zinc-950 flex items-center justify-center text-4xl rounded-3xl border border-zinc-800 shadow-2xl">
+                                {generateAvatar(myId, true)}
+                            </div>
+                            <div className="flex-1 space-y-1">
+                                <label className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Public Alias</label>
+                                <input 
+                                    value={alias}
+                                    onChange={(e) => { setAlias(e.target.value); localStorage.setItem('mesh_alias', e.target.value); }}
+                                    className="w-full bg-transparent text-xl font-black text-white outline-none focus:text-emerald-500 transition-colors uppercase italic"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest ml-1">Signal Signature</p>
+                            <div className="flex flex-wrap gap-2">
+                                {['⚡', '💎', '🛸', '🌀', '💀', '🔥', '🌵'].map(s => (
+                                    <button 
+                                        key={s}
+                                        onClick={() => { setSignalSignature(s); localStorage.setItem('mesh_signature', s); }}
+                                        className={`w-12 h-12 rounded-xl text-xl flex items-center justify-center transition-all ${signalSignature === s ? 'bg-emerald-500 text-zinc-950 shadow-lg' : 'bg-zinc-950 border border-zinc-800 text-zinc-700 hover:border-zinc-700'}`}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-6">
+                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Network Behavior</h4>
+                    <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[40px]">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                                <p className="font-black italic uppercase tracking-wider">Mesh Relay Participation</p>
+                                <p className="text-xs text-zinc-500">Allow other nodes to jump through your device to extend range.</p>
+                            </div>
+                            <button 
+                                onClick={() => { setIsRelayEnabled(!isRelayEnabled); localStorage.setItem('mesh_relay_enabled', (!isRelayEnabled).toString()); }}
+                                className={`w-14 h-8 rounded-full transition-all relative flex items-center p-1 ${isRelayEnabled ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                            >
+                                <div className={`w-6 h-6 bg-zinc-950 rounded-full transition-all ${isRelayEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+                    </div>
+                  </section>
+
+                  <section className="pt-8">
+                     <button 
+                        onClick={clearAllData}
+                        className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 py-6 rounded-[30px] font-black uppercase tracking-widest transition-all"
+                     >
+                        <Trash2 className="w-5 h-5 inline-block mr-2 -mt-1" /> Wipe Node Memory
+                     </button>
+                  </section>
+               </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        {/* Mobile Nav */}
+        <div className="md:hidden fixed bottom-0 left-0 w-full border-t border-zinc-900 bg-zinc-950/90 backdrop-blur-xl z-50 pb-safe">
+            <div className="flex justify-around items-center h-20 px-4">
+                <button onClick={() => setActiveTab('chats')} className={`flex flex-col items-center gap-1 flex-1 ${activeTab === 'chats' ? 'text-emerald-500' : 'text-zinc-600'}`}>
+                    <MessageSquare className="w-6 h-6" />
+                    <span className="text-[9px] font-black uppercase tracking-widest leading-none">Chats</span>
                 </button>
-                <div className="text-center mb-6 mt-2">
-                  <div className="w-20 h-20 bg-zinc-950 border border-zinc-800 rounded-full mx-auto flex items-center justify-center text-4xl shadow-inner mb-4 relative">
-                    {generateAvatar(viewPeerInfo)}
-                    <div className={`absolute bottom-0 right-0 w-5 h-5 rounded-full border-4 border-zinc-900 ${connections.has(viewPeerInfo) ? 'bg-emerald-500' : 'bg-zinc-600'}`}></div>
-                  </div>
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                    {getDisplayName(viewPeerInfo)}
-                  </h3>
-                  <div className="mt-1 flex items-center justify-center gap-2">
-                    {friends.some(f => f.id === viewPeerInfo) ? (
-                      <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1"><Star className="w-3 h-3" fill="currentColor" /> Trusted Friend</span>
-                    ) : (
-                      <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Temporary Node</span>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 mb-6 font-mono text-center">
-                   <div className="text-[10px] uppercase text-zinc-500 tracking-widest mb-2">Cryptographic Hash ID</div>
-                   <div className="text-xs text- emerald-300 break-all">{viewPeerInfo}</div>
-                </div>
-                
-                <div className="flex flex-col gap-3">
-                   {connections.has(viewPeerInfo) ? (
-                     <button
-                       onClick={() => {
-                          const conn = connections.get(viewPeerInfo);
-                          if (conn) conn.close();
-                          setViewPeerInfo(null);
-                       }}
-                       className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold rounded-lg transition-colors border border-red-500/20"
-                     >
-                       Disconnect Node
-                     </button>
-                   ) : (
-                     <button
-                       onClick={() => {
-                          if (peer) {
-                             setStatus('connecting');
-                             const conn = peer.connect(viewPeerInfo);
-                             setupConnection(conn);
-                          }
-                          setViewPeerInfo(null);
-                       }}
-                       className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold rounded-lg transition-colors"
-                     >
-                       Ping Offline Node
-                     </button>
-                   )}
-                   
-                   <button
-                     onClick={async () => {
-                        await toggleFriend(viewPeerInfo);
-                     }}
-                     className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                   >
-                     <Star className="w-4 h-4" />
-                     {friends.some(f => f.id === viewPeerInfo) ? 'Remove from Address Book' : 'Save to Address Book'}
-                   </button>
-                </div>
+                <button onClick={() => setActiveTab('discovery')} className={`flex flex-col items-center gap-1 flex-1 ${activeTab === 'discovery' ? 'text-emerald-500' : 'text-zinc-600'}`}>
+                    <Radar className="w-6 h-6" />
+                    <span className="text-[9px] font-black uppercase tracking-widest leading-none">Discovery</span>
+                </button>
+                <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 flex-1 ${activeTab === 'settings' ? 'text-emerald-500' : 'text-zinc-600'}`}>
+                    <Settings className="w-6 h-6" />
+                    <span className="text-[9px] font-black uppercase tracking-widest leading-none">Settings</span>
+                </button>
             </div>
-          )}
+        </div>
+
+      </div>
+
+      {/* QR Modal Shorthand */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-[110] bg-zinc-950/95 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setShowQrModal(false)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-zinc-900 border border-zinc-800 p-10 rounded-[50px] space-y-8 text-center" onClick={e => e.stopPropagation()}>
+                <div className="space-y-2">
+                    <h3 className="text-2xl font-black italic uppercase tracking-tighter">Your Node Identity</h3>
+                    <p className="text-zinc-600 text-[10px] font-mono uppercase">{myId}</p>
+                </div>
+                <div className="bg-white p-6 rounded-[40px] inline-block shadow-[0_0_50px_rgba(255,255,255,0.1)]">
+                    <QRCodeSVG value={myId} size={200} level="H" includeMargin={false} />
+                </div>
+                <button onClick={() => setShowQrModal(false)} className="w-full py-4 bg-zinc-800 text-zinc-400 rounded-3xl font-black uppercase tracking-widest">Close Discovery</button>
+            </motion.div>
         </div>
       )}
+
+      {/* Connect Modal Shorthand */}
+      {showConnectModal && (
+        <div className="fixed inset-0 z-[110] bg-zinc-950/95 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setShowConnectModal(false)}>
+            <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-zinc-900 border border-zinc-800 p-10 rounded-[50px] w-full max-w-md space-y-8" onClick={e => e.stopPropagation()}>
+                <h3 className="text-2xl font-black italic uppercase tracking-tighter text-center">Add Mesh Node</h3>
+                
+                <div className="flex border border-zinc-800 rounded-2xl overflow-hidden">
+                    <button onClick={() => setShowScanner(false)} className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest ${!showScanner ? 'bg-emerald-500 text-zinc-950' : 'bg-transparent text-zinc-600'}`}>ID Input</button>
+                    <button onClick={() => setShowScanner(true)} className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest ${showScanner ? 'bg-emerald-500 text-zinc-950' : 'bg-transparent text-zinc-600'}`}>Scan QR</button>
+                </div>
+
+                {showScanner ? (
+                    <div className="aspect-square rounded-[30px] overflow-hidden border border-zinc-800 bg-zinc-950 relative">
+                        <Scanner onScan={(res) => { if(res[0]){ setConnectId(res[0].rawValue); setShowScanner(false); } }} />
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <input 
+                            value={connectId}
+                            onChange={(e) => setConnectId(e.target.value)}
+                            placeholder="Enter Peer ID..."
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-6 py-5 text-white outline-none focus:border-emerald-500"
+                        />
+                        <button 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if(!connectId.trim() || !peer) return;
+                                setIsConnecting(true);
+                                const c = peer.connect(connectId.trim(), { reliable: true });
+                                setupConnection(c);
+                                c.on('open', () => { setIsConnecting(false); setShowConnectModal(false); setConnectId(''); });
+                                c.on('error', () => { setIsConnecting(false); setConnectionError('Node unreachable.'); });
+                            }}
+                            className="w-full bg-emerald-500 text-zinc-950 py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl"
+                        >
+                            {isConnecting ? 'Bridging...' : 'Establish Bridge'}
+                        </button>
+                    </div>
+                )}
+                
+                {connectionError && <p className="text-rose-500 text-[10px] font-bold uppercase text-center">{connectionError}</p>}
+                <button onClick={() => setShowConnectModal(false)} className="w-full py-4 text-zinc-600 font-bold uppercase text-[10px] tracking-widest">Withdraw</button>
+            </motion.div>
+        </div>
+      )}
+
     </div>
   );
 }
-

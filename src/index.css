@@ -1,55 +1,59 @@
 @import "tailwindcss";
 
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-zinc-950 text-zinc-100 overflow-hidden;
+    height: 100dvh;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-['Outfit'];
+  }
+}
+
 @layer utilities {
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  .pt-safe {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  .pl-safe {
-    padding-left: env(safe-area-inset-left, 0px);
-  }
-  .pr-safe {
-    padding-right: env(safe-area-inset-right, 0px);
-  }
-  .px-safe {
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
+  
+  .glass {
+    @apply bg-zinc-950/60 backdrop-blur-xl border border-white/5;
   }
 
-  /* Support for backdrop-blur on browsers that may not support it or have limited support */
-  @supports not (backdrop-filter: blur(1px)) {
-    .backdrop-blur-md, 
-    .backdrop-blur-lg, 
-    .backdrop-blur-sm {
-      background-color: rgb(24 24 27 / 0.95) !important; /* zinc-900 with high opacity */
-    }
+  .glow-emerald {
+    box-shadow: 0 0 30px -10px theme('colors.emerald.500');
   }
 
-  /* Slow pulse animation fallback */
-  @keyframes pulse-slow {
-    0%, 100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
+  /* Custom Scrollbar Styles */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
   }
-  .animate-pulse-slow {
-    animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800 rounded-full;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-emerald-500/50;
+  }
+
+  /* Animation Overrides */
+  @keyframes radar-pulse {
+    from { transform: scale(1); opacity: 0.5; }
+    to { transform: scale(8); opacity: 0; }
+  }
+  
+  .animate-radar {
+    animation: radar-pulse 6s infinite linear;
   }
 }
 
-:root {
-  /* Fix for viewport height issues on mobile browsers */
-  --vh: 1vh;
-}
-
-body {
-  /* Ensure the body takes full height and doesn't scroll excessively */
-  height: 100dvh;
-  margin: 0;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
