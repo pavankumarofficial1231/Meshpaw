@@ -1,147 +1,173 @@
 import React from 'react';
+import { motion } from 'framer-motion';
+import { Shield, Lock, EyeOff, Cpu, Network, Zap, ChevronLeft, ArrowRight, ShieldAlert, Fingerprint } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Shield, Lock, FileKey2, Network, ArrowLeft } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 export default function PrivacyPage() {
+  const fadeInUp = {
+    initial: { opacity: 0, y: 30 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true },
+    transition: { duration: 0.8, ease: "easeOut" }
+  };
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-emerald-500/30 pb-32">
-      
-      {/* Navbar */}
-      <nav className="border-b border-white/10 sticky top-0 bg-zinc-950/80 backdrop-blur-xl z-50">
-         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-           <Link to="/" className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors text-sm font-medium">
-             <ArrowLeft className="w-4 h-4" /> Back to Protocol
-           </Link>
-           <span className="font-bold tracking-tight text-zinc-100 flex items-center gap-2">
-             <Shield className="w-5 h-5 text-emerald-400" />
-             Privacy Manifesto
-           </span>
-         </div>
-      </nav>
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-emerald-500/30 overflow-x-hidden">
+      {/* Dynamic Background Grid */}
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.05),transparent_70%)]"></div>
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+      </div>
 
-      <main className="max-w-4xl mx-auto px-6 pt-20">
-        
-        <div className="mb-16">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-6">Zero-Knowledge Architecture.</h1>
-          <p className="text-zinc-400 text-lg leading-relaxed max-w-2xl">
-            We don't collect your data because we mathematically cannot. MeshPaw is not an application; it is a protocol running entirely within your browser's cryptography engine.
-          </p>
+      {/* Header */}
+      <header className="relative z-50 h-24 flex items-center justify-between px-8 md:px-12 max-w-7xl mx-auto">
+        <Link to="/" className="group flex items-center gap-3 text-zinc-400 hover:text-white transition-colors">
+          <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+          <span className="text-xs font-black uppercase tracking-[0.3em]">Back to Hub</span>
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-black">
+             <Shield className="w-5 h-5" />
+          </div>
+          <span className="font-black text-xl italic tracking-tighter uppercase italic">MeshPaw Protocol</span>
         </div>
+      </header>
 
-        {/* Animated SVG Visualization of E2E Encryption */}
-        <div className="w-full aspect-video bg-zinc-900 border border-white/10 rounded-3xl mb-16 overflow-hidden relative flex flex-col items-center justify-center shadow-2xl">
-           <div className="absolute top-4 left-6 text-xs font-mono text-zinc-500 uppercase flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live Protocol Diagram
-           </div>
-           
-           <svg className="w-full max-w-2xl h-64" viewBox="0 0 800 300" fill="none" xmlns="http://www.w3.org/2000/svg">
-              {/* Nodes */}
-              <circle cx="150" cy="150" r="40" className="fill-zinc-800 stroke-zinc-700 stroke-2" />
-              <text x="150" y="215" fill="#a1a1aa" fontSize="14" textAnchor="middle" fontWeight="bold">SENDER</text>
-              
-              <circle cx="400" cy="80" r="30" className="fill-zinc-900 stroke-zinc-800 stroke-2 stroke-dashed" />
-              <text x="400" y="40" fill="#71717a" fontSize="12" textAnchor="middle">RELAY (BLIND)</text>
+      <main className="relative z-10 pt-20 pb-40 px-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Hero Section */}
+          <motion.div {...fadeInUp} className="text-center mb-32">
+             <h1 className="text-6xl md:text-8xl font-black italic uppercase tracking-tighter mb-8 bg-gradient-to-b from-white to-zinc-600 bg-clip-text text-transparent">
+               Privacy is<br />Non-Negotiable.
+             </h1>
+             <p className="text-xl text-zinc-400 font-medium max-w-2xl mx-auto leading-relaxed">
+               MeshPaw is not a messenger. It is a decentralized protocol for sovereign human communication. No servers. No central authority. No trace.
+             </p>
+          </motion.div>
 
-              <circle cx="400" cy="220" r="30" className="fill-zinc-900 stroke-zinc-800 stroke-2 stroke-dashed" />
-              <text x="400" y="270" fill="#71717a" fontSize="12" textAnchor="middle">RELAY (BLIND)</text>
+          {/* 3D Protocol Visualization (Simplified Logic) */}
+          <div className="relative h-[500px] mb-40 flex items-center justify-center">
+             <motion.div 
+               initial={{ rotateY: -20, rotateX: 10, opacity: 0 }}
+               whileInView={{ rotateY: 10, rotateX: -5, opacity: 1 }}
+               transition={{ duration: 1.5, ease: "easeOut" }}
+               className="relative w-full max-w-lg aspect-square"
+               style={{ transformStyle: 'preserve-3d' }}
+             >
+                {/* 3D Perspective Lines */}
+                <div className="absolute inset-0 border-[0.5px] border-emerald-500/20 rounded-[40px] rotate-12 scale-110"></div>
+                <div className="absolute inset-0 border-[0.5px] border-emerald-500/20 rounded-[40px] -rotate-6 scale-95"></div>
+                
+                {/* Center Node */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                   <div className="w-24 h-24 bg-black border border-emerald-500/50 rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(16,185,129,0.2)]">
+                      <Lock className="w-10 h-10 text-emerald-500" />
+                   </div>
+                </div>
 
-              <circle cx="650" cy="150" r="40" className="fill-emerald-950 stroke-emerald-800 stroke-2" />
-              <text x="650" y="215" fill="#34d399" fontSize="14" textAnchor="middle" fontWeight="bold">RECIPIENT</text>
+                {/* Satellite Nodes */}
+                {[...Array(6)].map((_, i) => (
+                   <motion.div 
+                     key={i}
+                     animate={{ 
+                       y: [0, -20, 0],
+                       opacity: [0.3, 0.6, 0.3]
+                     }}
+                     transition={{ duration: 3 + i, repeat: Infinity, ease: "easeInOut" }}
+                     className="absolute w-12 h-12 bg-zinc-900 border border-white/5 rounded-2xl flex items-center justify-center"
+                     style={{
+                       top: `${50 + 40 * Math.sin(i * (Math.PI / 3))}%`,
+                       left: `${50 + 40 * Math.cos(i * (Math.PI / 3))}%`
+                     }}
+                   >
+                     <Cpu className="w-5 h-5 text-zinc-500" />
+                   </motion.div>
+                ))}
+             </motion.div>
+             
+             {/* Floating Info Cards */}
+             <motion.div 
+               initial={{ x: 50, opacity: 0 }}
+               whileInView={{ x: 0, opacity: 1 }}
+               className="absolute top-0 right-0 md:-right-20 bg-zinc-900/80 backdrop-blur-xl border border-white/10 p-6 rounded-3xl max-w-xs shadow-2xl"
+             >
+                <Fingerprint className="w-6 h-6 text-emerald-400 mb-4" />
+                <h3 className="font-black italic uppercase text-xs tracking-widest mb-2">Sovereign Identity</h3>
+                <p className="text-[11px] text-zinc-500 leading-relaxed font-bold">Your ID is a Curve25519 PubKey. It exists only in your browser storage. It cannot be revoked or seized.</p>
+             </motion.div>
 
-              {/* Connections */}
-              <path d="M 185 130 Q 292.5 105 370 85" className="stroke-zinc-800 stroke-[3px]" />
-              <path d="M 185 170 Q 292.5 195 370 215" className="stroke-zinc-800 stroke-[3px]" />
-              <path d="M 430 85 Q 540 105 615 130" className="stroke-zinc-800 stroke-[3px]" />
-              <path d="M 430 215 Q 540 195 615 170" className="stroke-zinc-800 stroke-[3px]" />
+             <motion.div 
+               initial={{ x: -50, opacity: 0 }}
+               whileInView={{ x: 0, opacity: 1 }}
+               className="absolute bottom-0 left-0 md:-left-20 bg-zinc-900/80 backdrop-blur-xl border border-white/10 p-6 rounded-3xl max-w-xs shadow-2xl"
+             >
+                <Network className="w-6 h-6 text-emerald-400 mb-4" />
+                <h3 className="font-black italic uppercase text-xs tracking-widest mb-2">Relay Zero</h3>
+                <p className="text-[11px] text-zinc-500 leading-relaxed font-bold">Data travels via 7-hop TTL Gossip. No central database ever touches your plaintext or metadata.</p>
+             </motion.div>
+          </div>
 
-              {/* Animated Message Packets */}
-              <g className="animate-[slide-right_3s_linear_infinite]">
-                 {/* Raw Text at Sender */}
-                 <rect x="135" y="135" width="30" height="30" rx="8" className="fill-white" />
-                 <text x="150" y="155" fill="#000" fontSize="12" textAnchor="middle" fontWeight="bold">HI</text>
-                 {/* Lock icon representing encryption applied mid-flight */}
-                 <path d="M 230 110 h 20 v 15 h -20 z M 235 110 v -5 a 5 5 0 0 1 10 0 v 5" className="fill-none stroke-emerald-500 stroke-2" />
-              </g>
+          {/* Pillars of MeshPaw */}
+          <div className="grid md:grid-cols-2 gap-8 mb-40">
+             {[
+               {
+                 title: "Zero Knowledge",
+                 desc: "We don't collect data because there is no 'we'. The platform is a client-side execution environment that treats you as the sole owner of your keys.",
+                 icon: <EyeOff className="w-6 h-6" />
+               },
+               {
+                 title: "Peer-to-Peer Focus",
+                 desc: "Connections are established directly via WebRTC. Signaling is ephemeral. Once connected, your traffic never leaves the private mesh.",
+                 icon: <Zap className="w-6 h-6" />
+               },
+               {
+                 title: "Immutable History",
+                 desc: "Messages are stored in your browser's IndexedDB. We have no 'cloud backup' because that is a backdoor by another name.",
+                 icon: <ShieldAlert className="w-6 h-6" />
+               },
+               {
+                 title: "Ephemeral by Design",
+                 desc: "Set self-destruct timers on sensitive mesh traffic. Once the TTL expires, the packet is purged from all nodes in the gossip chain.",
+                 icon: <Cpu className="w-6 h-6" />
+               }
+             ].map((pill, i) => (
+                <motion.div 
+                  key={i}
+                  {...fadeInUp}
+                  transition={{ delay: i * 0.1 }}
+                  className="p-10 bg-zinc-900/30 rounded-[40px] border border-white/5 hover:border-emerald-500/30 transition-all group"
+                >
+                   <div className="w-12 h-12 bg-zinc-900 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                      {pill.icon}
+                   </div>
+                   <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-4 italic">{pill.title}</h3>
+                   <p className="text-zinc-500 font-medium leading-relaxed">{pill.desc}</p>
+                </motion.div>
+             ))}
+          </div>
 
-              {/* Encrypted packets through relays */}
-              <g className="animate-[fade-in-out_2s_linear_infinite_0.5s]">
-                 <rect x="385" y="65" width="30" height="30" rx="4" className="fill-zinc-700" />
-                 <text x="400" y="85" fill="#fff" fontSize="14" textAnchor="middle">***</text>
-              </g>
-
-              <g className="animate-[fade-in-out_2s_linear_infinite_1s]">
-                 <rect x="385" y="205" width="30" height="30" rx="4" className="fill-zinc-700" />
-                 <text x="400" y="225" fill="#fff" fontSize="14" textAnchor="middle">***</text>
-              </g>
-
-              {/* Decryption at Recipient */}
-              <g className="animate-[slide-right-end_3s_linear_infinite_1.5s]">
-                 <path d="M 560 140 h 20 v 15 h -20 z M 565 140 v -5 a 5 5 0 0 1 10 0 v 5" className="fill-none stroke-zinc-500 stroke-2 animate-pulse" />
-                 <rect x="635" y="135" width="30" height="30" rx="8" className="fill-emerald-500" />
-                 <text x="650" y="155" fill="#000" fontSize="12" textAnchor="middle" fontWeight="bold">HI</text>
-              </g>
-
-              <style>{`
-                @keyframes slide-right {
-                  0% { transform: translateX(0); opacity: 1; }
-                  40% { transform: translateX(230px); opacity: 0; }
-                  100% { transform: translateX(230px); opacity: 0; }
-                }
-                @keyframes slide-right-end {
-                  0% { transform: translateX(-150px); opacity: 0; }
-                  50% { transform: translateX(-150px); opacity: 0; }
-                  70% { transform: translateX(-50px); opacity: 1; }
-                  100% { transform: translateX(0); opacity: 1; }
-                }
-                @keyframes fade-in-out {
-                  0%, 100% { opacity: 0; }
-                  50% { opacity: 1; }
-                }
-              `}</style>
-           </svg>
+          {/* Call to Action */}
+          <motion.div {...fadeInUp} className="text-center p-20 bg-emerald-500 rounded-[60px] text-black">
+             <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter mb-8">Ready to exit the panopticon?</h2>
+             <Link to="/mesh" className="inline-flex items-center gap-4 px-12 py-6 bg-black text-white rounded-3xl font-black uppercase tracking-widest hover:scale-105 transition-all shadow-2xl">
+                Initialize Mesh UI <ArrowRight className="w-5 h-5" />
+             </Link>
+          </motion.div>
         </div>
-
-        <section className="space-y-12 text-zinc-300">
-           <div className="flex gap-6 items-start">
-             <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex-shrink-0 flex items-center justify-center text-zinc-100">
-               <FileKey2 className="w-6 h-6" />
-             </div>
-             <div>
-               <h3 className="text-xl font-bold text-white mb-2">1. Your Keys, Your Identity</h3>
-               <p className="leading-relaxed">
-                 There are no usernames, passwords, or emails. Your identity is a Curve25519 cryptographic keypair generated entirely inside your browser's local sandbox. The private key never leaves your device under any circumstances.
-               </p>
-             </div>
-           </div>
-
-           <div className="flex gap-6 items-start">
-             <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex-shrink-0 flex items-center justify-center text-emerald-400">
-               <Lock className="w-6 h-6" />
-             </div>
-             <div>
-               <h3 className="text-xl font-bold text-white mb-2">2. End-to-End Encryption</h3>
-               <p className="leading-relaxed">
-                 Every byte of information sent over the mesh is symmetrically encrypted using TweetNaCl. Even if a message passes through 5 different relay peers to reach its target, none of those middleman nodes can decipher the content. They are mathematically blind.
-               </p>
-             </div>
-           </div>
-
-           <div className="flex gap-6 items-start">
-             <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex-shrink-0 flex items-center justify-center text-zinc-100">
-               <Network className="w-6 h-6" />
-             </div>
-             <div>
-               <h3 className="text-xl font-bold text-white mb-2">3. No Central Servers</h3>
-               <p className="leading-relaxed">
-                 We only use a lightweight WebRTC signaling server (PeerJS) to help browsers discover each other. Once a WebRTC `RTCDataChannel` is established, traffic flows directly point-to-point via UDP/TCP. We log nothing.
-               </p>
-             </div>
-           </div>
-        </section>
-
       </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-white/5 py-20 px-12">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+           <div className="flex items-center gap-3">
+              <div className="w-6 h-6 bg-emerald-500/20 text-emerald-400 rounded flex items-center justify-center">
+                 <Shield className="w-4 h-4" />
+              </div>
+              <span className="font-black text-xs uppercase tracking-widest text-zinc-500 underline decoration-emerald-500/50">Privacy Manifesto v2.1</span>
+           </div>
+           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-700">MeshPaw: NO TRACKING. NO ADS. NO SERVERS.</p>
+        </div>
+      </footer>
     </div>
   );
 }
