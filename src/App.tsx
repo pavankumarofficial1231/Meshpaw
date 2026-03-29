@@ -203,10 +203,7 @@ export default function App() {
       port: peerPort,
       path: '/myapp',
       secure: window.location.protocol === 'https:',
-      debug: 0,
-      config: {
-        iceServers: [] // Empty array forces local-only (host) candidates, removing reliance on cloud STUN.
-      }
+      debug: 0
     });
 
 
@@ -483,7 +480,7 @@ export default function App() {
     if (!inputMessage.trim()) return;
 
     // Packet Structure
-    const messageId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
+    const messageId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9);
     const timestamp = Date.now();
     
     // Sign the message (using the exact same values as the packet)
