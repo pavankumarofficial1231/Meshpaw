@@ -112,8 +112,6 @@ export default function App() {
   
   const addLog = (msg: string) => {
     console.log(`[Mesh Log] ${msg}`);
-    const time = new Date().toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' });
-    setDebugLogs(prev => [`[${time}] ${msg}`, ...prev].slice(0, 50));
   };
   
   // Database State
@@ -1552,35 +1550,6 @@ export default function App() {
         </div>
       )}
       
-      {/* Mesh Debug Console (Mobile/Desktop Visibility Toggle) */}
-      <div className="fixed bottom-20 left-4 right-4 md:left-auto md:right-4 md:bottom-4 md:w-80 h-56 bg-black/95 border border-zinc-800 rounded-xl z-50 overflow-hidden flex flex-col shadow-2xl backdrop-blur-md">
-        <div className="p-2 border-b border-zinc-800 bg-zinc-900 flex justify-between items-center text-[10px] uppercase font-bold text-zinc-500">
-           <span>Mesh Activity Monitor</span>
-           <div className="flex gap-2">
-             <button onClick={() => setDebugLogs([])} className="hover:text-white">Clear</button>
-             <button onClick={() => setNonce(n => n+1)} className="hover:text-white text-emerald-500">Retry</button>
-           </div>
-        </div>
-        
-        <div className="px-2 py-1 bg-zinc-900/50 border-b border-zinc-800 flex items-center justify-between">
-           <span className="text-[9px] text-zinc-500 font-bold uppercase">Cloud Mesh Mode</span>
-           <button 
-             onClick={() => setForceCloud(!forceCloud)}
-             className={`w-8 h-4 rounded-full p-0.5 transition-colors ${forceCloud ? 'bg-emerald-500' : 'bg-zinc-700'}`}
-           >
-             <div className={`w-3 h-3 bg-white rounded-full transition-transform ${forceCloud ? 'translate-x-4' : ''}`}></div>
-           </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2 font-mono text-[10px] space-y-1">
-          {debugLogs.length === 0 && <div className="text-zinc-600 italic">Waiting for heartbeat...</div>}
-          {debugLogs.map((log, i) => (
-            <div key={i} className={log.includes('ERR') ? 'text-red-400' : log.includes('OK') ? 'text-emerald-400' : 'text-zinc-400'}>
-              {log}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
