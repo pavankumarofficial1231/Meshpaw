@@ -44,16 +44,6 @@ export default defineConfig(({mode}) => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      proxy: {
-        // Proxy PeerJS signaling through Vite so ALL LAN devices reach the same server.
-        // A phone at 192.168.x.x:3000 is automatically proxied to localhost:9000.
-        // This means every device just uses port 3000 — no separate port needed.
-        '/myapp': {
-          target: 'http://localhost:9000',
-          changeOrigin: true,
-          ws: true, // Critical: proxy WebSocket connections (PeerJS uses WS)
-        },
-      },
     },
   };
 });

@@ -194,16 +194,15 @@ export default function App() {
     
     setStatus('connecting');
 
-    // Single unified config: ALL devices (laptop, phone on LAN) connect to the
-    // same PeerServer via Vite's /myapp proxy — no complex detection needed.
-    // Laptop: localhost:3000/myapp → proxied → localhost:9000
-    // Phone:  192.168.x.x:3000/myapp → same proxy → same PeerServer
+    // Every device connects directly to PeerServer on port 9000.
+    // PeerServer binds to all interfaces (::), so both laptop (localhost:9000)
+    // and phone (192.168.x.x:9000) reach the SAME server process.
     const newPeer = new Peer(peerId, {
       host: window.location.hostname,
-      port: parseInt(window.location.port || (window.location.protocol === 'https:' ? '443' : '80')),
+      port: 9000,
       path: '/myapp',
-      secure: window.location.protocol === 'https:',
-      debug: 1,
+      secure: false,
+      debug: 0,
     });
 
 
@@ -429,9 +428,8 @@ export default function App() {
   const connectToPeer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!peer || !connectId.trim() || connectId === myId) return;
-    
+
     const targetId = connectId.trim();
-    
     if (connections.has(targetId)) {
       setShowConnectModal(false);
       setConnectId('');
@@ -441,30 +439,38 @@ export default function App() {
 
     setIsConnecting(true);
     setConnectionError(null);
-
-    const conn = peer.connect(targetId, { reliable: true });
-    setupConnection(conn);
-
-    const connectTimeout = setTimeout(() => {
-      setIsConnecting(false);
-      // Check if established by peeking at conn directly
-      if (!conn.open) {
-        setConnectionError('Timed out. Check the ID and that both devices are on the same network.');
-      }
-    }, 15000);
-
-    conn.on('open', () => {
-      clearTimeout(connectTimeout);
-      setIsConnecting(false);
-      setConnectionError(null);
+    doConnect(peer, targetId, () => {
       setShowConnectModal(false);
       setConnectId('');
     });
+  };
+
+  // Single reusable connect helper — used by both manual entry and QR scan.
+  // All actual connection events are handled inside setupConnection.
+  // This only handles the UI side-effects (modal close, error display, spinner).
+  const doConnect = (p: typeof peer, targetId: string, onSuccess?: () => void) => {
+    if (!p) return;
+    const conn = p.connect(targetId);
+    setupConnection(conn);
+
+    const t = setTimeout(() => {
+      setIsConnecting(false);
+      if (!conn.open) {
+        setConnectionError('Timed out — make sure both devices are on the same Wi-Fi/hotspot.');
+      }
+    }, 20000);
+
+    conn.on('open', () => {
+      clearTimeout(t);
+      setIsConnecting(false);
+      setConnectionError(null);
+      onSuccess?.();
+    });
 
     conn.on('error', (err: any) => {
-      clearTimeout(connectTimeout);
+      clearTimeout(t);
       setIsConnecting(false);
-      setConnectionError(`Error: ${err.type || err.message || 'Unknown error'}. Check the peer ID.`);
+      setConnectionError(`Could not connect: ${err.type || err.message || 'check peer ID'}`);
     });
   };
 
@@ -1178,22 +1184,15 @@ export default function App() {
                 <div className="mb-6 rounded-xl overflow-hidden border border-zinc-800 bg-black max-h-[250px] relative">
                   <Scanner onScan={(result) => {
                     const scannedId = result?.[0]?.rawValue;
-                    if (scannedId && scannedId.length > 20 && peer) {
+                    if (scannedId && scannedId.length > 20 && peer && scannedId !== myId && !connections.has(scannedId)) {
                       setConnectId(scannedId);
                       setShowScanner(false);
-                      // Auto-connect immediately after scan
-                      if (!connections.has(scannedId) && scannedId !== myId) {
-                        setIsConnecting(true);
-                        setConnectionError(null);
-                        const conn = peer.connect(scannedId, { reliable: true });
-                        setupConnection(conn);
-                        const t = setTimeout(() => {
-                          setIsConnecting(false);
-                          if (!conn.open) setConnectionError('QR connect timed out. Try manual ID entry.');
-                        }, 15000);
-                        conn.on('open', () => { clearTimeout(t); setIsConnecting(false); setShowConnectModal(false); setConnectId(''); });
-                        conn.on('error', (err: any) => { clearTimeout(t); setIsConnecting(false); setConnectionError(`QR Error: ${err.type || 'failed'}`); });
-                      }
+                      setIsConnecting(true);
+                      setConnectionError(null);
+                      doConnect(peer, scannedId, () => {
+                        setShowConnectModal(false);
+                        setConnectId('');
+                      });
                     }
                   }} />
                   <div className="absolute font-mono text-center w-full bottom-2 left-0 text-emerald-400 text-xs bg-black/50 py-1">Scanning Crypto ID...</div>
