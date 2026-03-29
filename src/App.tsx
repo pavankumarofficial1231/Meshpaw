@@ -417,14 +417,21 @@ export default function App() {
           isVerified,
           signingPubKey,
           reactions: {},
-          status: 'read' // If I see it, I've at least 'received' it
+          status: 'read'
         }]);
 
         // Send 'Delivered' Ack back to source immediately
         if (data.sourceId) {
             connectionsRef.current.forEach(fConn => {
                 if (fConn.open) {
+                   // Status Flow: 
+                   // 1. Immediately send DELIVERED (Gray Double Tick)
                    fConn.send({ type: 'ack', messageId: data.id, status: 'delivered', senderId: myIdRef.current });
+                   
+                   // 2. If browser is focused, OR when focus returns, send READ (Emerald Double Tick)
+                   if (!document.hidden) {
+                      fConn.send({ type: 'ack', messageId: data.id, status: 'read', senderId: myIdRef.current });
+                   }
                 }
             });
         }
@@ -461,12 +468,12 @@ export default function App() {
       } else if (data.type === 'ack') {
         setMessages(prev => prev.map(msg => {
           if (msg.id === data.messageId && msg.isMine) {
-            // Only upgrade status, never downgrade
-            const statusLevels = { 'sent': 1, 'delivered': 2, 'read': 3 };
+            // Status Priority: read (3) > delivered (2) > sent (1)
+            const statusLevels: Record<string, number> = { 'sent': 1, 'delivered': 2, 'read': 3 };
             const currentLevel = statusLevels[msg.status] || 0;
-            const newLevel = statusLevels[data.status as 'sent'|'delivered'|'read'] || 0;
+            const newLevel = statusLevels[data.status] || 0;
             if (newLevel > currentLevel) {
-              return { ...msg, status: data.status };
+              return { ...msg, status: data.status as 'sent' | 'delivered' | 'read' };
             }
           }
           return msg;
