@@ -1432,31 +1432,36 @@ export default function App() {
 
               {showScanner && (
                 <div className="mb-6 rounded-xl overflow-hidden border border-zinc-800 bg-black max-h-[250px] relative">
-                  <Scanner 
-                    onScan={(result) => {
-                      const raw = result?.[0]?.rawValue;
-                      if (!raw) return;
-                      
-                      try {
-                        // Parse according to Step 1: QR Data Structure
-                        const data = JSON.parse(raw);
-                        if (data.id && data.pub && data.id !== myId) {
-                          setScannedIdentity(data);
-                          setShowScanner(false);
-                          console.log(`Identity Packet Found: ${data.alias}`);
+                  {window.isSecureContext ? (
+                    <Scanner 
+                      onScan={(result) => {
+                        const raw = result?.[0]?.rawValue;
+                        if (!raw) return;
+                        
+                        try {
+                          const data = JSON.parse(raw);
+                          if (data.id && data.pub && data.id !== myId) {
+                            setScannedIdentity(data);
+                            setShowScanner(false);
+                          }
+                        } catch (e) {
+                           if (raw.length > 20 && raw !== myId) {
+                             setConnectId(raw);
+                             setShowScanner(false);
+                           }
                         }
-                      } catch (e) {
-                         // Fallback for legacy plain-text IDs
-                         if (raw.length > 20 && raw !== myId) {
-                           setConnectId(raw);
-                           setShowScanner(false);
-                         }
-                      }
-                    }} 
-                    constraints={{ facingMode: 'environment' }}
-                    onError={(e) => console.error('[Mesh] Scanner Error:', e)}
-                  />
-                  <div className="absolute font-mono text-center w-full bottom-2 left-0 text-emerald-400 text-xs bg-black/50 py-1">Scanning Crypto ID...</div>
+                      }} 
+                      constraints={{ facingMode: 'environment' }}
+                      onError={(e) => console.error('[Mesh] Scanner Error:', e)}
+                    />
+                  ) : (
+                    <div className="p-8 text-center bg-zinc-950 flex flex-col items-center justify-center gap-2">
+                       <div className="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center border border-rose-500/20"><WifiOff className="w-6 h-6" /></div>
+                       <div className="text-zinc-200 text-xs font-bold uppercase tracking-widest">Insecure Origin</div>
+                       <p className="text-[10px] text-zinc-500 leading-relaxed">Browser blocks cameras on local HTTP IPs. Please use the Vercel HTTPS link or paste the ID manually.</p>
+                    </div>
+                  )}
+                  <div className="absolute font-mono text-center w-full bottom-2 left-0 text-emerald-400 text-[10px] bg-black/50 py-1">Scanning Crypto ID...</div>
                 </div>
               )}
               
