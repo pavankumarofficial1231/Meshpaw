@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Peer, DataConnection } from 'peerjs';
 import { QRCodeSVG } from 'qrcode.react';
 import { 
@@ -85,6 +85,7 @@ export default function App() {
   const [connectId, setConnectId] = useState('');
   const [keyPair, setKeyPair] = useState<KeyPair | null>(null);
   const keyPairRef = useRef<KeyPair | null>(null);
+  const peerRef = useRef<Peer | null>(null);
   const myIdRef = useRef<string>('');
   
   // UI States
@@ -192,8 +193,7 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Initialize Peer and Crypto Identity
-  useEffect(() => {
+  const initPeer = useCallback(() => {
     // 1. Identity Layer: Cryptographic Key Generation
     const savedKeys = localStorage.getItem('meshpaw_keys');
     let keys: KeyPair;
@@ -214,12 +214,8 @@ export default function App() {
     setKeyPair(keys);
     keyPairRef.current = keys;
     
-    // Your Address is derived from your Public Key
-    // Aggressively sanitize for PeerJS strictness: alphanumeric, -, _ ONLY
     const rawBase64 = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     const baseId = `mp-${rawBase64.replace(/[^a-zA-Z0-9\-_]/g, '')}`; 
-    
-    // Identity collision correction (if needed)
     const peerId = nonce > 0 ? `${baseId}-${nonce}` : baseId;
     
     setStatus('connecting');
@@ -227,7 +223,9 @@ export default function App() {
     const peerConfig = resolveBroker(forceCloud);
     const isCloud = !!peerConfig.key;
 
-    console.log(`[Mesh] Initializing node in ${isCloud ? 'Cloud' : 'Local'} mode`);
+    if (peerRef.current) {
+        peerRef.current.destroy();
+    }
 
     const newPeer = new Peer(peerId, {
       ...peerConfig,
@@ -241,13 +239,13 @@ export default function App() {
       }
     });
 
+    peerRef.current = newPeer;
 
     newPeer.on('open', (id) => {
       myIdRef.current = id;
       setMyId(id);
       setStatus('connected');
       console.log(`Signaling OK. ID: ${id}`);
-      console.log(`Broker: ${isCloud ? 'PeerJS Cloud' : 'Local Mesh'}`);
     });
 
     newPeer.on('connection', (conn) => {
@@ -257,23 +255,19 @@ export default function App() {
 
     newPeer.on('error', (err: any) => {
       const type = err.type || 'unknown';
-      const msg = err.message || 'Check terminal';
-      console.log(`ERR: ${type} - ${msg}`);
+      console.log(`ERR: ${type} - ${err.message}`);
       
       if (type === 'invalid-id' || type === 'unavailable-id') {
         setStatus('disconnected');
-        setConnectionError('Identity rejected. Attempting repair...');
-        // Increment nonce to force re-init with a suffix
+        setConnectionError('Repairing identity...');
         setTimeout(() => setNonce(prev => prev + 1), 2000);
       }
     });
-
 
     newPeer.on('disconnected', () => {
       setStatus('disconnected');
       setTimeout(() => {
         if (!newPeer.destroyed) {
-          console.log("[Mesh] Reconnecting to broker...");
           newPeer.reconnect();
           setStatus('connecting');
         }
@@ -281,11 +275,17 @@ export default function App() {
     });
 
     setPeer(newPeer);
+  }, [nonce, forceCloud]);
 
+  // Initial Boot
+  useEffect(() => {
+    initPeer();
     return () => {
-      newPeer.destroy();
+      if (peerRef.current) {
+        peerRef.current.destroy();
+      }
     };
-  }, [nonce, forceCloud]); // RE-INIT ON FORCE CLOUD OR RETRY
+  }, [initPeer]);
 
   // Store-and-Forward Flusher
   useEffect(() => {
@@ -1288,8 +1288,7 @@ export default function App() {
                     value={JSON.stringify({
                       id: myId,
                       alias: generateFoodName(myId),
-                      pub: keyPair?.publicKey,
-                      ver: 1
+                      pub: keyPair?.publicKey
                     })} 
                     size={250} 
                     level="L" 
