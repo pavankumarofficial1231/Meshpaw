@@ -203,7 +203,10 @@ export default function App() {
       port: peerPort,
       path: '/myapp',
       secure: window.location.protocol === 'https:',
-      debug: 0
+      debug: 0,
+      config: {
+        iceServers: [] // Empty array forces local-only (host) candidates, removing reliance on cloud STUN.
+      }
     });
 
 
@@ -297,7 +300,7 @@ export default function App() {
   }, [connections]);
 
   const setupConnection = (conn: DataConnection) => {
-    conn.on('open', async () => {
+    const handleOpen = async () => {
       setConnections(prev => {
         const newMap = new Map(prev);
         newMap.set(conn.peer, conn);
@@ -314,7 +317,13 @@ export default function App() {
       if (!currentFriends.some(f => f.id === conn.peer)) {
         setPendingPeerPrompt(conn.peer);
       }
-    });
+    };
+
+    if (conn.open) {
+      handleOpen();
+    } else {
+      conn.on('open', handleOpen);
+    }
 
     conn.on('data', async (data: any) => {
       setPeerStats(prev => {
