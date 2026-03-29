@@ -103,6 +103,8 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [scannedIdentity, setScannedIdentity] = useState<{ id: string; alias: string; pub: string; ver: number } | null>(null);
+
   
   const addLog = (msg: string) => {
     console.log(`[Mesh Log] ${msg}`);
@@ -225,16 +227,25 @@ export default function App() {
 
     // For local dev, Vite is on 3000 and PeerJS on 9000. For production, Server.js runs both on the same port!
     const isLocalDev = window.location.port === '3000' || window.location.port === '5173';
-    const peerPort = isLocalDev ? 9000 : (window.location.port ? Number(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80));
+    const isVercel = window.location.hostname.includes('vercel.app');
+    
+    // For local dev, use manual port. For Vercel, Use PeerJS Cloud (default)
+    const peerConfig = (isLocalDev || window.location.hostname === 'localhost') ? {
+      host: window.location.hostname,
+      port: isLocalDev ? 9000 : Number(window.location.port),
+      path: '/peerjs',
+      secure: window.location.protocol === 'https:',
+    } : {
+      // Public Cloud Fallback for Vercel/Production web deployments
+      // This allows the app to work even if the user hasn't deployed a signaling server yet.
+      key: 'peerjs',
+      debug: 3
+    };
 
-    console.log(`[Mesh] Initializing node on ${window.location.hostname}:${peerPort}/peerjs`);
+    console.log(`[Mesh] Initializing node in ${isVercel ? 'Cloud' : 'Local'} mode`);
 
     const newPeer = new Peer(peerId, {
-      host: window.location.hostname,
-      port: peerPort,
-      path: '/peerjs', // Explicit standardized path
-      secure: window.location.protocol === 'https:',
-      debug: 3, 
+      ...peerConfig,
       pingInterval: 3000, 
       config: {
         iceServers: [
@@ -1201,8 +1212,73 @@ export default function App() {
       </div>
 
       {/* Modals Overlay */}
-      {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo) && (
+      {(showQrModal || showConnectModal || pendingPeerPrompt || viewPeerInfo || scannedIdentity) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          
+          {/* Trust Confirmation Screen (from QR Scan) */}
+          {scannedIdentity && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200 feedback-ripple">
+               <div className="text-center mb-8">
+                  <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full mx-auto flex items-center justify-center mb-4">
+                    <ShieldCheck className="w-10 h-10" />
+                  </div>
+                  <h3 className="text-2xl font-black text-white mb-2">Trust Identity?</h3>
+                  <p className="text-zinc-400 text-sm">Verify the alias and fingerprint verbally to prevent spoofing.</p>
+               </div>
+
+               <div className="bg-zinc-950 rounded-2xl p-6 border border-zinc-800 mb-8 space-y-4">
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Mesh Name</div>
+                    <div className="text-xl font-bold text-emerald-400">{scannedIdentity.alias}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Key Fingerprint</div>
+                    <div className="font-mono text-[11px] text-zinc-300 break-all leading-relaxed">
+                      {scannedIdentity.pub.substring(0, 4)}:{scannedIdentity.pub.substring(4, 8)}:...:{scannedIdentity.pub.slice(-4)}
+                    </div>
+                  </div>
+               </div>
+
+               <div className="flex flex-col gap-3">
+                 <button 
+                    onClick={async () => {
+                       const node = {
+                         id: scannedIdentity.id,
+                         alias: scannedIdentity.alias,
+                         pub: scannedIdentity.pub,
+                         addedAt: Date.now(),
+                         type: 'permanent'
+                       };
+                       // Step 5: On Accept
+                       await saveFriend({
+                          id: node.id,
+                          name: node.alias,
+                          addedAt: node.addedAt
+                       });
+                       setFriends(await loadFriends());
+                       setScannedIdentity(null);
+                       addLog(`Identity Saved: ${node.alias}`);
+                       
+                       // Auto-connect
+                       if (peer) {
+                         doConnect(peer, node.id, () => {
+                           setActiveTab('chat');
+                         });
+                       }
+                    }}
+                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black rounded-2xl transition-all shadow-[0_10px_30px_rgba(16,185,129,0.3)] transform hover:scale-[1.02] active:scale-95"
+                 >
+                   TRUST & ADD
+                 </button>
+                 <button 
+                    onClick={() => setScannedIdentity(null)}
+                    className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-2xl transition-all"
+                 >
+                   REJECT
+                 </button>
+               </div>
+            </div>
+          )}
           
           {/* QR Modal */}
           {showQrModal && (
@@ -1288,17 +1364,23 @@ export default function App() {
                 <div className="mb-6 rounded-xl overflow-hidden border border-zinc-800 bg-black max-h-[250px] relative">
                   <Scanner 
                     onScan={(result) => {
-                      const scannedId = result?.[0]?.rawValue;
-                      console.log('[Mesh] Scanned ID:', scannedId);
-                      if (scannedId && scannedId.length > 20 && peer && scannedId !== myId && !connections.has(scannedId)) {
-                        setConnectId(scannedId);
-                        setShowScanner(false);
-                        setIsConnecting(true);
-                        setConnectionError(null);
-                        doConnect(peer, scannedId, () => {
-                          setShowConnectModal(false);
-                          setConnectId('');
-                        });
+                      const raw = result?.[0]?.rawValue;
+                      if (!raw) return;
+                      
+                      try {
+                        // Parse according to Step 1: QR Data Structure
+                        const data = JSON.parse(raw);
+                        if (data.id && data.pub && data.id !== myId) {
+                          setScannedIdentity(data);
+                          setShowScanner(false);
+                          addLog(`Identity Packet Found: ${data.alias}`);
+                        }
+                      } catch (e) {
+                         // Fallback for legacy plain-text IDs
+                         if (raw.length > 20 && raw !== myId) {
+                           setConnectId(raw);
+                           setShowScanner(false);
+                         }
                       }
                     }} 
                     constraints={{ facingMode: 'environment' }}

@@ -1,7 +1,7 @@
 {
-  "name": "react-example",
+  "name": "meshpaw",
+  "version": "1.2.1",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "npx peerjs --port 9000 --path /peerjs --host 0.0.0.0 --allow_discovery & vite --port=3000 --host=0.0.0.0",
