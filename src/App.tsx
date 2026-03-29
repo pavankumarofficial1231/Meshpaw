@@ -296,6 +296,39 @@ export default function App() {
     };
   }, [initPeer]);
 
+  // Read Receipts Sync on Focus
+  useEffect(() => {
+    const markAllRead = () => {
+      if (document.hidden) return;
+      
+      const unreadIds = messages
+        .filter(m => !m.isMine && m.status !== 'read')
+        .map(m => m.id);
+
+      if (unreadIds.length > 0) {
+        setMessages(prev => prev.map(m => unreadIds.includes(m.id) ? { ...m, status: 'read' } : m));
+        
+        // Notify the mesh we've read them
+        unreadIds.forEach(id => {
+          connectionsRef.current.forEach(conn => {
+            if (conn.open) {
+              conn.send({ type: 'ack', messageId: id, status: 'read', senderId: myIdRef.current });
+            }
+          });
+        });
+      }
+    };
+
+    window.addEventListener('focus', markAllRead);
+    document.addEventListener('visibilitychange', markAllRead);
+    markAllRead(); // Check immediately
+    
+    return () => {
+      window.removeEventListener('focus', markAllRead);
+      document.removeEventListener('visibilitychange', markAllRead);
+    };
+  }, [messages.length]);
+
   // Store-and-Forward Flusher
   useEffect(() => {
     const queueInterval = setInterval(async () => {
