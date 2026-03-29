@@ -38,8 +38,14 @@ import {
   LogOut,
   User,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Video,
+  RadioTower,
+  PhoneCall,
+  PhoneOff,
+  Layers
 } from 'lucide-react';
+import { MeshCanvas } from '../components/MeshCanvas';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { useAuth0 } from '@auth0/auth0-react';
@@ -142,6 +148,14 @@ export default function MeshApp() {
   const [forceCloud, setForceCloud] = useState(false);
   const [nonce, setNonce] = useState(0); // For forced re-initialization
   const [isRecording, setIsRecording] = useState(false);
+  
+  // God Mode States
+  const [beaconMode, setBeaconMode] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [activeCall, setActiveCall] = useState<string | null>(null);
+  const [incomingCall, setIncomingCall] = useState<any>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [activeRoom, setActiveRoom] = useState<string>('GLOBAL');
   const [showRoomModal, setShowRoomModal] = useState(false);
@@ -357,6 +371,11 @@ export default function MeshApp() {
       setupConnection(conn);
     });
 
+    newPeer.on('call', (call) => {
+      console.log(`Incoming encrypted video call from: ${call.peer}`);
+      setIncomingCall(call);
+    });
+
     newPeer.on('error', (err: any) => {
       const type = err.type || 'unknown';
       console.log(`ERR: ${type} - ${err.message}`);
@@ -420,7 +439,7 @@ export default function MeshApp() {
 
     return () => {
       window.removeEventListener('focus', markAllRead);
-      document.removeEventListener('visibilitychange', markAllRead);
+      window.removeEventListener('visibilitychange', markAllRead);
     };
   }, [messages.length]);
 
@@ -926,6 +945,72 @@ export default function MeshApp() {
     ? Math.round(Array.from(statsRef.current.values() as Iterable<PeerStat>).reduce((acc: number, stat: PeerStat) => acc + stat.latency, 0) / connectionsRef.current.size)
     : 0;
 
+  // Video Call Handlers
+  const setupCallEventHandlers = useCallback((call: any) => {
+    call.on('stream', (userVideoStream: MediaStream) => {
+      setRemoteStreams(prev => {
+        const m = new Map(prev);
+        m.set(call.peer, userVideoStream);
+        return m;
+      });
+      setActiveTab('video' as any);
+    });
+    call.on('close', () => {
+      setRemoteStreams(prev => {
+        const m = new Map(prev);
+        m.delete(call.peer);
+        return m;
+      });
+      setActiveCall(null);
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        setLocalStream(null);
+      }
+    });
+  }, [localStream]);
+
+  const startCall = async (targetId: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(stream);
+      if (peerRef.current) {
+        const call = peerRef.current.call(targetId, stream);
+        setupCallEventHandlers(call);
+        setActiveCall(targetId);
+        setActiveTab('video' as any);
+      }
+    } catch(err) { console.error('Failed to get local stream', err); alert('Microphone/Camera access denied.'); }
+  };
+
+  const answerCall = async () => {
+    if (!incomingCall) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(stream);
+      incomingCall.answer(stream);
+      setupCallEventHandlers(incomingCall);
+      setActiveCall(incomingCall.peer);
+      setIncomingCall(null);
+      setActiveTab('video' as any);
+    } catch(err) { console.error(err); }
+  };
+
+  const endCall = () => {
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      setLocalStream(null);
+    }
+    setRemoteStreams(new Map());
+    setActiveCall(null);
+    setActiveTab('chat');
+  };
+
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, activeTab]);
+
   return (
     <div className="flex flex-col md:flex-row h-screen h-[100dvh] bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
 
@@ -1107,15 +1192,27 @@ export default function MeshApp() {
                               </span>
                             </div>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setViewPeerInfo(friend.id);
-                            }}
-                            className="p-1 rounded text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors"
-                          >
-                            <Search className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startCall(friend.id);
+                              }}
+                              className={`p-1.5 rounded transition-colors ${isConnected ? 'text-emerald-500 hover:bg-emerald-500/10' : 'text-zinc-600 cursor-not-allowed'}`}
+                              title={isConnected ? "Encrypted Mesh-Cam Call" : "Node offline"}
+                            >
+                              <Video className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewPeerInfo(friend.id);
+                              }}
+                              className="p-1.5 rounded text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors"
+                            >
+                              <Search className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </li>
                     );
@@ -1399,11 +1496,8 @@ export default function MeshApp() {
                       <div className="bg-emerald-500/10 p-2.5 rounded border border-emerald-500/20 text-emerald-400">
                         <strong>Crypto Keys:</strong> Your identity is a Curve25519 PubKey.
                       </div>
-                      <div className="bg-amber-500/10 p-2.5 rounded border border-amber-500/20 text-amber-500/90">
-                        <strong>Gossip Protocol:</strong> Messages hop up to 7 times (TTL) avoiding endless loops.
-                      </div>
                       <div className="bg-blue-500/10 p-2.5 rounded border border-blue-500/20 text-blue-400">
-                        <strong>Off-grid Ready:</strong> Sending offline? Messages queue locally & forward when connected!
+                        <strong>Decentralized File Swarm:</strong> Attach files below. They are chunked and streamed directly across peers like BitTorrent.
                       </div>
                     </div>
                   </div>
@@ -2212,6 +2306,19 @@ export default function MeshApp() {
                   <option value="Ghost Mode">🥷 Ghost Mode</option>
                   <option value="Not Available">🔴 Not Available</option>
                 </select>
+              </div>
+
+              {/* Beacon Mode Toggle in Profile */}
+              <div className="pt-4 border-t border-white/10 mt-4">
+                 <button
+                   onClick={() => {
+                      setBeaconMode(true);
+                      setShowProfileModal(false);
+                   }}
+                   className="w-full flex items-center justify-center gap-3 py-3 bg-zinc-950 border border-emerald-500/20 text-emerald-400 font-bold rounded-xl hover:bg-emerald-500/10 transition-colors uppercase tracking-widest text-xs"
+                 >
+                    <RadioTower className="w-4 h-4" /> Act as Relay Beacon
+                 </button>
               </div>
             </div>
 
