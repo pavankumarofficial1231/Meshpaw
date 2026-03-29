@@ -104,6 +104,9 @@ export default function App() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [scannedIdentity, setScannedIdentity] = useState<{ id: string; alias: string; pub: string; ver: number } | null>(null);
+  const [forceCloud, setForceCloud] = useState(false);
+  const [nonce, setNonce] = useState(0); // For forced re-initialization
+
 
   
   const addLog = (msg: string) => {
@@ -218,26 +221,23 @@ export default function App() {
     keyPairRef.current = keys;
 
     // Your Address is derived from your Public Key
-    // Make it URL safe for PeerJS ID requirements and force Alphanumeric bounds!
-    const base64Safe = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    const sessionRand = Math.random().toString(36).substring(2, 6);
-    const peerId = `mp-${base64Safe}-${sessionRand}`;
+    // Aggressively sanitize for PeerJS strictness: alphanumeric, -, _ ONLY
+    const rawBase64 = keys.publicKey.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    const peerId = `mp-${rawBase64.replace(/[^a-zA-Z0-9\-_]/g, '')}`; 
     
     setStatus('connecting');
 
     // For local dev, Vite is on 3000 and PeerJS on 9000. For production, Server.js runs both on the same port!
     const isLocalDev = window.location.port === '3000' || window.location.port === '5173';
-    const isVercel = window.location.hostname.includes('vercel.app');
+    const isVercel = window.location.hostname.includes('vercel.app') || forceCloud;
     
     // For local dev, use manual port. For Vercel, Use PeerJS Cloud (default)
-    const peerConfig = (isLocalDev || window.location.hostname === 'localhost') ? {
+    const peerConfig = (isLocalDev || window.location.hostname === 'localhost') && !forceCloud ? {
       host: window.location.hostname,
       port: isLocalDev ? 9000 : Number(window.location.port),
       path: '/peerjs',
       secure: window.location.protocol === 'https:',
     } : {
-      // Public Cloud Fallback for Vercel/Production web deployments
-      // This allows the app to work even if the user hasn't deployed a signaling server yet.
       key: 'peerjs',
       debug: 3
     };
@@ -262,6 +262,7 @@ export default function App() {
       setMyId(id);
       setStatus('connected');
       addLog(`Signaling OK. ID: ${id}`);
+      addLog(`Broker: ${isVercel ? 'PeerJS Cloud' : 'Local Mesh'}`);
     });
 
     newPeer.on('connection', (conn) => {
@@ -269,18 +270,17 @@ export default function App() {
       setupConnection(conn);
     });
 
-    newPeer.on('error', (err) => {
-      addLog(`ERR: ${err.type} - ${err.message || 'Check terminal'}`);
-      console.error('PeerJS Node Logic Error:', err);
-      if (err.type === 'peer-unavailable') {
-        setConnectionError(`Node not found on this mesh.`);
-      } else if (err.type === 'unavailable-id') {
+    newPeer.on('error', (err: any) => {
+      const type = err.type || 'unknown';
+      const msg = err.message || 'Check terminal';
+      addLog(`ERR: ${type} - ${msg}`);
+      
+      if (type === 'invalid-id' || type === 'unavailable-id') {
         setStatus('disconnected');
-        setConnectionError('Identity collision. Refreshing...');
-      } else {
-        setConnectionError(`Mesh Error: ${err.type}`);
+        setConnectionError('Identity rejected by mesh. Refreshing keys...');
       }
     });
+
 
     newPeer.on('disconnected', () => {
       setStatus('disconnected');
@@ -298,7 +298,7 @@ export default function App() {
     return () => {
       newPeer.destroy();
     };
-  }, []);
+  }, [nonce, forceCloud]); // RE-INIT ON FORCE CLOUD OR RETRY
 
   // Store-and-Forward Flusher
   useEffect(() => {
@@ -1549,13 +1549,27 @@ export default function App() {
       )}
       
       {/* Mesh Debug Console (Mobile/Desktop Visibility Toggle) */}
-      <div className="fixed bottom-20 left-4 right-4 md:left-auto md:right-4 md:bottom-4 md:w-80 h-48 bg-black/90 border border-zinc-800 rounded-xl z-50 overflow-hidden flex flex-col shadow-2xl backdrop-blur-md">
+      <div className="fixed bottom-20 left-4 right-4 md:left-auto md:right-4 md:bottom-4 md:w-80 h-56 bg-black/95 border border-zinc-800 rounded-xl z-50 overflow-hidden flex flex-col shadow-2xl backdrop-blur-md">
         <div className="p-2 border-b border-zinc-800 bg-zinc-900 flex justify-between items-center text-[10px] uppercase font-bold text-zinc-500">
            <span>Mesh Activity Monitor</span>
-           <button onClick={() => setDebugLogs([])} className="hover:text-white">Clear</button>
+           <div className="flex gap-2">
+             <button onClick={() => setDebugLogs([])} className="hover:text-white">Clear</button>
+             <button onClick={() => setNonce(n => n+1)} className="hover:text-white text-emerald-500">Retry</button>
+           </div>
         </div>
+        
+        <div className="px-2 py-1 bg-zinc-900/50 border-b border-zinc-800 flex items-center justify-between">
+           <span className="text-[9px] text-zinc-500 font-bold uppercase">Cloud Mesh Mode</span>
+           <button 
+             onClick={() => setForceCloud(!forceCloud)}
+             className={`w-8 h-4 rounded-full p-0.5 transition-colors ${forceCloud ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+           >
+             <div className={`w-3 h-3 bg-white rounded-full transition-transform ${forceCloud ? 'translate-x-4' : ''}`}></div>
+           </button>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-2 font-mono text-[10px] space-y-1">
-          {debugLogs.length === 0 && <div className="text-zinc-600 italic">Waiting for connection pulse...</div>}
+          {debugLogs.length === 0 && <div className="text-zinc-600 italic">Waiting for heartbeat...</div>}
           {debugLogs.map((log, i) => (
             <div key={i} className={log.includes('ERR') ? 'text-red-400' : log.includes('OK') ? 'text-emerald-400' : 'text-zinc-400'}>
               {log}
