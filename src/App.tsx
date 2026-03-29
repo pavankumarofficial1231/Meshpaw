@@ -23,7 +23,10 @@ import {
   ScanLine,
   Radar,
   Star,
-  ShieldCheck
+  ShieldCheck,
+  Settings,
+  Check,
+  CheckCheck
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { generateKeys, KeyPair, signData, verifyData } from './lib/crypto';
@@ -40,6 +43,7 @@ interface Message {
   isVerified?: boolean;
   signingPubKey?: string;
   reactions?: Record<string, string[]>;
+  status: 'sent' | 'delivered' | 'read';
 }
 
 interface PeerStat {
@@ -412,8 +416,18 @@ export default function App() {
           isMine: false,
           isVerified,
           signingPubKey,
-          reactions: {}
+          reactions: {},
+          status: 'read' // If I see it, I've at least 'received' it
         }]);
+
+        // Send 'Delivered' Ack back to source immediately
+        if (data.sourceId) {
+            connectionsRef.current.forEach(fConn => {
+                if (fConn.open) {
+                   fConn.send({ type: 'ack', messageId: data.id, status: 'delivered', senderId: myIdRef.current });
+                }
+            });
+        }
 
         // 2. Decrement TTL and Rebroadcast to everyone else
         const ttl = typeof data.ttl === 'number' ? data.ttl : 7; // Default 7 hops
@@ -441,6 +455,19 @@ export default function App() {
                 [data.emoji]: newUsers
               }
             };
+          }
+          return msg;
+        }));
+      } else if (data.type === 'ack') {
+        setMessages(prev => prev.map(msg => {
+          if (msg.id === data.messageId && msg.isMine) {
+            // Only upgrade status, never downgrade
+            const statusLevels = { 'sent': 1, 'delivered': 2, 'read': 3 };
+            const currentLevel = statusLevels[msg.status] || 0;
+            const newLevel = statusLevels[data.status as 'sent'|'delivered'|'read'] || 0;
+            if (newLevel > currentLevel) {
+              return { ...msg, status: data.status };
+            }
           }
           return msg;
         }));
@@ -563,7 +590,8 @@ export default function App() {
       isMine: true,
       isVerified: true, // Mine is always verified to me!
       signingPubKey,
-      reactions: {}
+      reactions: {},
+      status: 'sent'
     }]);
 
     // Send to all connected peers
@@ -1131,9 +1159,18 @@ export default function App() {
                       </div>
                     )}
 
-                    <span className="text-[10px] text-zinc-600 mt-1 mx-1 font-medium">
-                      {formatTime(msg.timestamp)}
-                    </span>
+                    <div className="flex items-center gap-1 mt-1 mx-1">
+                      <span className="text-[10px] text-zinc-600 font-medium">
+                        {formatTime(msg.timestamp)}
+                      </span>
+                      {msg.isMine && (
+                        <div className="flex text-[10px]">
+                           {msg.status === 'sent' && <Check className="w-3 h-3 text-zinc-600" />}
+                           {msg.status === 'delivered' && <CheckCheck className="w-3 h-3 text-zinc-600" />}
+                           {msg.status === 'read' && <CheckCheck className="w-3 h-3 text-emerald-500" />}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1540,7 +1577,61 @@ export default function App() {
           )}
         </div>
       )}
-      
+      {/* Connectivity Help Modal */}
+      {showSettings && (
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+           <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
+             <button onClick={() => setShowSettings(false)} className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white bg-zinc-800 rounded-full">
+               <X className="w-4 h-4" />
+             </button>
+             
+             <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-full mx-auto flex items-center justify-center mb-4 border border-emerald-500/20">
+                  <Settings className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-black text-white">Mesh Settings</h2>
+                <p className="text-zinc-500 text-sm mt-1">Cross-device connectivity tools</p>
+             </div>
+             
+             <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-zinc-950 rounded-2xl border border-zinc-800">
+                  <div>
+                    <div className="text-sm font-bold text-zinc-200">Force Cloud Mesh</div>
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mt-0.5">Recommended for LTE/4G</div>
+                  </div>
+                  <button 
+                    onClick={() => setForceCloud(!forceCloud)} 
+                    className={`w-12 h-6 rounded-full p-1 transition-colors ${forceCloud ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${forceCloud ? 'translate-x-6' : ''}`}></div>
+                  </button>
+                </div>
+                
+                <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
+                   <div className="text-xs font-bold text-emerald-400 mb-2 flex items-center gap-2">
+                     <Wifi className="w-4 h-4" /> System-to-Phone Tip
+                   </div>
+                   <p className="text-[11px] text-zinc-400 leading-relaxed mb-3">
+                     For fastest P2P, ensure both devices are on the same 2.4/5GHz Wi-Fi band. Some routers block local talk.
+                   </p>
+                   <button 
+                      onClick={() => { setNonce(n => n + 1); setShowSettings(false); }} 
+                      className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 text-xs font-bold rounded-xl transition-all border border-emerald-500/10"
+                    >
+                       Refresh Mesh Pulse
+                    </button>
+                </div>
+             </div>
+             
+             <button 
+                onClick={() => setShowSettings(false)}
+                className="w-full mt-6 py-3 bg-zinc-100 hover:bg-white text-black font-black rounded-2xl transition-all active:scale-95"
+             >
+               DONE
+             </button>
+           </div>
+         </div>
+      )}
     </div>
   );
 }
