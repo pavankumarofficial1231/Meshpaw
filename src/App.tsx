@@ -203,9 +203,9 @@ export default function App() {
       port: peerPort,
       path: '/myapp',
       secure: window.location.protocol === 'https:',
-      debug: 0,
+      debug: 2, // Slightly more verbose for mesh debugging
       config: {
-        iceServers: [] // Empty array forces local-only (host) candidates, removing reliance on cloud STUN.
+        iceServers: [] // Off-grid: Don't wait for cloud STUN, just use local host candidates.
       }
     });
 
@@ -460,7 +460,10 @@ export default function App() {
   // This only handles the UI side-effects (modal close, error display, spinner).
   const doConnect = (p: typeof peer, targetId: string, onSuccess?: () => void) => {
     if (!p) return;
-    const conn = p.connect(targetId);
+    const conn = p.connect(targetId, {
+      reliable: true,
+      metadata: { sourceId: myId }
+    });
     setupConnection(conn);
 
     const t = setTimeout(() => {

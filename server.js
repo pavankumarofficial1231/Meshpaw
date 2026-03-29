@@ -12,16 +12,28 @@ const PORT = process.env.PORT || 9000;
 // Serve the static files from the React app
 app.use(express.static(path.join(__dirname, 'dist')));
 
-const server = app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`MeshPaw Server running at:`);
+  console.log(`- Local: http://localhost:${PORT}`);
+  console.log(`- Mesh Base: /myapp`);
 });
 
 // Setup PeerJS Server
 const peerServer = ExpressPeerServer(server, {
-  path: '/myapp'
+  path: '/myapp',
+  allow_discovery: true,
+  proxied: true
 });
 
-app.use('/', peerServer);
+peerServer.on('connection', (client) => {
+  console.log(`[Mesh] Client Connected: ${client.getId()}`);
+});
+
+peerServer.on('disconnect', (client) => {
+  console.log(`[Mesh] Client Disconnected: ${client.getId()}`);
+});
+
+app.use(peerServer);
 
 // Handles any requests that don't match the ones above
 app.get('*', (req, res) => {
